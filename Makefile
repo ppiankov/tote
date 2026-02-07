@@ -17,7 +17,7 @@ lint:
 
 fmt:
 	gofmt -w .
-	goimports -w .
+	@command -v goimports >/dev/null 2>&1 && goimports -w . || true
 
 vet:
 	go vet ./...
