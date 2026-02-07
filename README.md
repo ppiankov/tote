@@ -48,9 +48,25 @@ This is duct tape for container images. Use it. Then fix the real problem.
 - `kubectl` configured with cluster access
 - RBAC permissions: `get`/`list`/`watch` on Pods, Nodes, Namespaces; `create` on Events
 
-### Install
+### Install with Helm
 
-Download the binary from [Releases](https://github.com/ppiankov/tote/releases):
+```bash
+helm install tote ./charts/tote -n tote --create-namespace
+```
+
+Or with custom values:
+
+```bash
+helm install tote ./charts/tote -n tote --create-namespace \
+  --set config.metricsAddr=:9090 \
+  --set resources.limits.memory=256Mi
+```
+
+This deploys tote as a Deployment with a ServiceAccount, ClusterRole, and ClusterRoleBinding. RBAC is created automatically.
+
+### Install from binary
+
+Download from [Releases](https://github.com/ppiankov/tote/releases):
 
 ```bash
 # Linux amd64
@@ -60,11 +76,7 @@ chmod +x tote
 # macOS arm64
 curl -Lo tote https://github.com/ppiankov/tote/releases/latest/download/tote-darwin-arm64
 chmod +x tote
-```
 
-### Run
-
-```bash
 # Run with in-cluster config (inside a Pod)
 ./tote
 
@@ -256,7 +268,7 @@ This means tote needs only **read access** to work. It never touches your nodes,
 - [ ] Owner workload annotation inheritance
 - [ ] Namespace-level rate limiting
 - [ ] Webhook/Slack notifications
-- [ ] Helm chart
+- [x] Helm chart
 - [ ] Predicate filtering (only enqueue pods with waiting containers)
 
 ## Development

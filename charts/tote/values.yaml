@@ -1,0 +1,34 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/ppiankov/tote
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+serviceAccount:
+  create: true
+  # Override the service account name. Defaults to the release fullname.
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+# Operator runtime configuration (mapped to CLI flags).
+config:
+  # Global kill switch. Set to false to disable all detection.
+  enabled: true
+  # Bind address for Prometheus metrics endpoint.
+  metricsAddr: ":8080"
