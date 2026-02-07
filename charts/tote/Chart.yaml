@@ -1,0 +1,19 @@
+apiVersion: v2
+name: tote
+description: Emergency Kubernetes operator that detects image pull failures and finds cached images on nodes.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/ppiankov/tote
+sources:
+  - https://github.com/ppiankov/tote
+keywords:
+  - kubernetes
+  - operator
+  - image
+  - registry
+  - salvage
+  - emergency
+maintainers:
+  - name: ppiankov
+    url: https://github.com/ppiankov
