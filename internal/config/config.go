@@ -1,11 +1,31 @@
 package config
 
+import "time"
+
 const (
 	// AnnotationNamespaceAllow is required on the Namespace for tote to act.
 	AnnotationNamespaceAllow = "tote.dev/allow"
 
 	// AnnotationPodAutoSalvage is required on the Pod.
 	AnnotationPodAutoSalvage = "tote.dev/auto-salvage"
+
+	// AnnotationSalvagedDigest marks a pod as already salvaged for a digest.
+	AnnotationSalvagedDigest = "tote.dev/salvaged-digest"
+
+	// AnnotationImportedAt records when the salvage completed.
+	AnnotationImportedAt = "tote.dev/imported-at"
+
+	// DefaultContainerdSocket is the default containerd socket path.
+	DefaultContainerdSocket = "/run/containerd/containerd.sock"
+
+	// DefaultAgentGRPCPort is the default gRPC port for the agent.
+	DefaultAgentGRPCPort = 9090
+
+	// DefaultMaxConcurrentSalvages is the default concurrent salvage limit.
+	DefaultMaxConcurrentSalvages = 2
+
+	// DefaultSessionTTL is the default session lifetime.
+	DefaultSessionTTL = 5 * time.Minute
 )
 
 // DefaultDeniedNamespaces are always excluded regardless of annotations.
@@ -22,6 +42,25 @@ type Config struct {
 
 	// DeniedNamespaces are namespaces that are never processed.
 	DeniedNamespaces map[string]bool
+
+	// MaxConcurrentSalvages limits parallel salvage operations.
+	MaxConcurrentSalvages int
+
+	// SessionTTL is the lifetime for salvage sessions.
+	SessionTTL time.Duration
+
+	// AgentNamespace is the namespace where tote agents run.
+	AgentNamespace string
+
+	// AgentGRPCPort is the gRPC port for agents.
+	AgentGRPCPort int
+}
+
+// AgentConfig holds agent-specific configuration.
+type AgentConfig struct {
+	ContainerdSocket string
+	GRPCPort         int
+	MetricsAddr      string
 }
 
 // New creates a Config with default values.
@@ -31,8 +70,11 @@ func New() Config {
 		denied[ns] = true
 	}
 	return Config{
-		Enabled:          true,
-		DeniedNamespaces: denied,
+		Enabled:               true,
+		DeniedNamespaces:      denied,
+		MaxConcurrentSalvages: DefaultMaxConcurrentSalvages,
+		SessionTTL:            DefaultSessionTTL,
+		AgentGRPCPort:         DefaultAgentGRPCPort,
 	}
 }
 

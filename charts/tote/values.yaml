@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/ppiankov/tote
-  tag: "0.1.0"
+  tag: "0.2.0"
   pullPolicy: IfNotPresent
 
 resources:
@@ -32,3 +32,23 @@ config:
   enabled: true
   # Bind address for Prometheus metrics endpoint.
   metricsAddr: ":8080"
+
+# Controller salvage settings.
+controller:
+  maxConcurrentSalvages: 2
+  sessionTTL: "5m0s"
+  agentGRPCPort: 9090
+
+# Agent DaemonSet configuration.
+agent:
+  enabled: true
+  containerdSocket: /run/containerd/containerd.sock
+  grpcPort: 9090
+  metricsAddr: ":8081"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
