@@ -16,15 +16,17 @@ import (
 	"github.com/ppiankov/tote/internal/inventory"
 	"github.com/ppiankov/tote/internal/metrics"
 	"github.com/ppiankov/tote/internal/resolver"
+	"github.com/ppiankov/tote/internal/transfer"
 )
 
 // PodReconciler watches Pods for image pull failures.
 type PodReconciler struct {
-	Client  client.Client
-	Config  config.Config
-	Finder  *inventory.Finder
-	Emitter *events.Emitter
-	Metrics *metrics.Counters
+	Client       client.Client
+	Config       config.Config
+	Finder       *inventory.Finder
+	Emitter      *events.Emitter
+	Metrics      *metrics.Counters
+	Orchestrator *transfer.Orchestrator
 }
 
 // Reconcile handles a single Pod reconciliation.
@@ -78,6 +80,15 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 			logger.Info("image salvageable", "container", f.ContainerName, "digest", res.Digest, "nodes", nodes)
 			r.Metrics.RecordSalvageable()
 			r.Emitter.EmitSalvageable(&pod, f.Image, nodes)
+
+			if r.Orchestrator != nil && pod.Spec.NodeName != "" {
+				if pod.Annotations[config.AnnotationSalvagedDigest] == res.Digest {
+					continue
+				}
+				if err := r.Orchestrator.Salvage(ctx, &pod, res.Digest, nodes[0]); err != nil {
+					logger.Error(err, "salvage failed", "digest", res.Digest)
+				}
+			}
 		}
 	}
 

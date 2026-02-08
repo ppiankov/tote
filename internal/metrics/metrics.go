@@ -9,6 +9,9 @@ type Counters struct {
 	DetectedFailures  prometheus.Counter
 	SalvageableImages prometheus.Counter
 	NotActionable     prometheus.Counter
+	SalvageAttempts   prometheus.Counter
+	SalvageSuccesses  prometheus.Counter
+	SalvageFailures   prometheus.Counter
 }
 
 // NewCounters creates and registers Prometheus counters with the given registry.
@@ -26,12 +29,27 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 			Name: "tote_not_actionable_total",
 			Help: "Total number of failures where the image uses a tag instead of a digest.",
 		}),
+		SalvageAttempts: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tote_salvage_attempts_total",
+			Help: "Total number of image salvage attempts.",
+		}),
+		SalvageSuccesses: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tote_salvage_successes_total",
+			Help: "Total number of successful image salvages.",
+		}),
+		SalvageFailures: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tote_salvage_failures_total",
+			Help: "Total number of failed image salvage attempts.",
+		}),
 	}
 
 	reg.MustRegister(
 		c.DetectedFailures,
 		c.SalvageableImages,
 		c.NotActionable,
+		c.SalvageAttempts,
+		c.SalvageSuccesses,
+		c.SalvageFailures,
 	)
 
 	return c
@@ -50,4 +68,19 @@ func (c *Counters) RecordSalvageable() {
 // RecordNotActionable increments the not-actionable counter.
 func (c *Counters) RecordNotActionable() {
 	c.NotActionable.Inc()
+}
+
+// RecordSalvageAttempt increments the salvage attempts counter.
+func (c *Counters) RecordSalvageAttempt() {
+	c.SalvageAttempts.Inc()
+}
+
+// RecordSalvageSuccess increments the salvage successes counter.
+func (c *Counters) RecordSalvageSuccess() {
+	c.SalvageSuccesses.Inc()
+}
+
+// RecordSalvageFailure increments the salvage failures counter.
+func (c *Counters) RecordSalvageFailure() {
+	c.SalvageFailures.Inc()
 }
