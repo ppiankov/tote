@@ -7,8 +7,12 @@ metadata:
     {{- include "tote.labels" . | nindent 4 }}
 rules:
   # Read pods and nodes to detect failures and find cached images.
+  # Patch pods for salvage annotations.
   - apiGroups: [""]
-    resources: [pods, nodes]
+    resources: [pods]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [""]
+    resources: [nodes]
     verbs: [get, list, watch]
   # Read namespaces to check opt-in annotations.
   - apiGroups: [""]

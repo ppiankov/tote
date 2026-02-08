@@ -1,11 +1,27 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNew_DefaultsEnabled(t *testing.T) {
 	cfg := New()
 	if !cfg.Enabled {
 		t.Error("expected Enabled to be true by default")
+	}
+}
+
+func TestNew_SalvageDefaults(t *testing.T) {
+	cfg := New()
+	if cfg.MaxConcurrentSalvages != DefaultMaxConcurrentSalvages {
+		t.Errorf("expected MaxConcurrentSalvages=%d, got %d", DefaultMaxConcurrentSalvages, cfg.MaxConcurrentSalvages)
+	}
+	if cfg.SessionTTL != 5*time.Minute {
+		t.Errorf("expected SessionTTL=5m, got %v", cfg.SessionTTL)
+	}
+	if cfg.AgentGRPCPort != DefaultAgentGRPCPort {
+		t.Errorf("expected AgentGRPCPort=%d, got %d", DefaultAgentGRPCPort, cfg.AgentGRPCPort)
 	}
 }
 

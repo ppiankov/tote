@@ -1,0 +1,55 @@
+{{- if .Values.agent.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "tote.fullname" . }}-agent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tote.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  selector:
+    matchLabels:
+      {{- include "tote.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        {{- include "tote.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: agent
+    spec:
+      serviceAccountName: {{ include "tote.fullname" . }}-agent
+      containers:
+        - name: agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - agent
+            - --containerd-socket={{ .Values.agent.containerdSocket }}
+            - --grpc-port={{ .Values.agent.grpcPort }}
+            - --metrics-addr={{ .Values.agent.metricsAddr }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.agent.grpcPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: containerd-socket
+              mountPath: {{ .Values.agent.containerdSocket }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          {{- with .Values.agent.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: containerd-socket
+          hostPath:
+            path: {{ .Values.agent.containerdSocket }}
+            type: Socket
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,45 @@
+syntax = "proto3";
+package tote.v1;
+option go_package = "github.com/ppiankov/tote/api/v1";
+
+service ToteAgent {
+  // Controller -> agent: verify digest exists locally, register session.
+  rpc PrepareExport(PrepareExportRequest) returns (PrepareExportResponse);
+
+  // Target agent -> source agent: stream image tar (authorized by session).
+  rpc ExportImage(ExportImageRequest) returns (stream DataChunk);
+
+  // Controller -> target agent: import image from source agent endpoint.
+  rpc ImportFrom(ImportFromRequest) returns (ImportFromResponse);
+
+  // Controller -> agent: list local image digests.
+  rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
+}
+
+message PrepareExportRequest {
+  string session_token = 1;
+  string digest = 2;
+}
+message PrepareExportResponse {}
+
+message ExportImageRequest {
+  string session_token = 1;
+}
+message DataChunk {
+  bytes data = 1;
+}
+
+message ImportFromRequest {
+  string session_token = 1;
+  string digest = 2;
+  string source_endpoint = 3;
+}
+message ImportFromResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message ListImagesRequest {}
+message ListImagesResponse {
+  repeated string digests = 1;
+}
