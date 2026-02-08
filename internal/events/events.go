@@ -14,7 +14,15 @@ const (
 	// ReasonNotActionable indicates the image uses a tag, not a digest.
 	ReasonNotActionable = "ImageNotActionable"
 
-	actionDetected = "Detected"
+	// ReasonSalvaged indicates the image was transferred between nodes.
+	ReasonSalvaged = "ImageSalvaged"
+
+	// ReasonSalvageFailed indicates the salvage attempt failed.
+	ReasonSalvageFailed = "ImageSalvageFailed"
+
+	actionDetected  = "Detected"
+	actionSalvaged  = "Salvaged"
+	actionSalvaging = "Salvaging"
 )
 
 // Emitter emits Kubernetes events for tote detections.
@@ -44,5 +52,24 @@ func (e *Emitter) EmitNotActionable(pod *corev1.Pod, image string) {
 		pod, nil, corev1.EventTypeWarning, ReasonNotActionable, actionDetected,
 		"Not actionable: image %s uses tag, not digest. Pin images by digest for tote to help.",
 		image,
+	)
+}
+
+// EmitSalvaged emits a Warning event indicating the image was transferred
+// between nodes via containerd.
+func (e *Emitter) EmitSalvaged(pod *corev1.Pod, image, sourceNode, targetNode string) {
+	e.Recorder.Eventf(
+		pod, nil, corev1.EventTypeWarning, ReasonSalvaged, actionSalvaged,
+		"Image %s salvaged from node %s to node %s via containerd. This is emergency — rebuild properly.",
+		image, sourceNode, targetNode,
+	)
+}
+
+// EmitSalvageFailed emits a Warning event indicating the salvage attempt failed.
+func (e *Emitter) EmitSalvageFailed(pod *corev1.Pod, image, reason string) {
+	e.Recorder.Eventf(
+		pod, nil, corev1.EventTypeWarning, ReasonSalvageFailed, actionSalvaging,
+		"Image salvage failed for %s: %s",
+		image, reason,
 	)
 }

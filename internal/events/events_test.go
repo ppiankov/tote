@@ -62,3 +62,33 @@ func TestEmitSalvageable_SingleNode(t *testing.T) {
 		t.Errorf("expected event to contain single node name, got %q", event)
 	}
 }
+
+func TestEmitSalvaged(t *testing.T) {
+	rec := k8sevents.NewFakeRecorder(10)
+	emitter := NewEmitter(rec)
+
+	emitter.EmitSalvaged(testPod(), "nginx@sha256:abc123", "node-src", "node-tgt")
+
+	event := <-rec.Events
+	if !strings.Contains(event, ReasonSalvaged) {
+		t.Errorf("expected event to contain reason %q, got %q", ReasonSalvaged, event)
+	}
+	if !strings.Contains(event, "node-src") || !strings.Contains(event, "node-tgt") {
+		t.Errorf("expected event to contain node names, got %q", event)
+	}
+}
+
+func TestEmitSalvageFailed(t *testing.T) {
+	rec := k8sevents.NewFakeRecorder(10)
+	emitter := NewEmitter(rec)
+
+	emitter.EmitSalvageFailed(testPod(), "nginx@sha256:abc123", "connection refused")
+
+	event := <-rec.Events
+	if !strings.Contains(event, ReasonSalvageFailed) {
+		t.Errorf("expected event to contain reason %q, got %q", ReasonSalvageFailed, event)
+	}
+	if !strings.Contains(event, "connection refused") {
+		t.Errorf("expected event to contain failure reason, got %q", event)
+	}
+}
