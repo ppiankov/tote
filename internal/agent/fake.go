@@ -1,0 +1,82 @@
+package agent
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"sync"
+)
+
+// FakeImageStore implements ImageStore for testing.
+type FakeImageStore struct {
+	mu     sync.Mutex
+	images map[string][]byte
+}
+
+// NewFakeImageStore creates an empty fake image store.
+func NewFakeImageStore() *FakeImageStore {
+	return &FakeImageStore{images: make(map[string][]byte)}
+}
+
+// AddImage adds an image with the given digest and tar data.
+func (f *FakeImageStore) AddImage(digest string, data []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.images[digest] = data
+}
+
+// List returns all stored digests.
+func (f *FakeImageStore) List(_ context.Context) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	digests := make([]string, 0, len(f.images))
+	for d := range f.images {
+		digests = append(digests, d)
+	}
+	return digests, nil
+}
+
+// Has returns true if the digest exists.
+func (f *FakeImageStore) Has(_ context.Context, digest string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	_, ok := f.images[digest]
+	return ok, nil
+}
+
+// Export writes the stored tar data for the given digest.
+func (f *FakeImageStore) Export(_ context.Context, digest string, w io.Writer) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	data, ok := f.images[digest]
+	if !ok {
+		return fmt.Errorf("image %s not found", digest)
+	}
+	_, err := w.Write(data)
+	return err
+}
+
+// Import reads tar data and stores it under a deterministic digest.
+func (f *FakeImageStore) Import(_ context.Context, r io.Reader) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+	digest := fmt.Sprintf("sha256:fake-%d", len(data))
+	f.images[digest] = data
+	return digest, nil
+}
+
+// FailingImageStore returns errors for all operations.
+type FailingImageStore struct {
+	Err error
+}
+
+func (f *FailingImageStore) List(_ context.Context) ([]string, error)              { return nil, f.Err }
+func (f *FailingImageStore) Has(_ context.Context, _ string) (bool, error)         { return false, f.Err }
+func (f *FailingImageStore) Export(_ context.Context, _ string, _ io.Writer) error { return f.Err }
+func (f *FailingImageStore) Import(_ context.Context, _ io.Reader) (string, error) {
+	return "", f.Err
+}
