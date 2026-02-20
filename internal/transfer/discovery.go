@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1 "github.com/ppiankov/tote/api/v1"
 )
@@ -63,13 +64,20 @@ func (r *Resolver) ResolveTagViaAgents(ctx context.Context, imageRef string) (st
 		return "", "", fmt.Errorf("listing agent pods: %w", err)
 	}
 
+	logger := log.FromContext(ctx)
+	logger.V(1).Info("querying agents for tag", "image", imageRef, "agentCount", len(pods.Items))
+
 	for _, pod := range pods.Items {
 		if pod.Status.PodIP == "" {
 			continue
 		}
 		endpoint := fmt.Sprintf("%s:%d", pod.Status.PodIP, r.Port)
 		digest, err := resolveTagFromAgent(ctx, endpoint, imageRef)
-		if err != nil || digest == "" {
+		if err != nil {
+			logger.V(1).Info("agent ResolveTag failed", "endpoint", endpoint, "error", err)
+			continue
+		}
+		if digest == "" {
 			continue
 		}
 		return digest, pod.Spec.NodeName, nil
