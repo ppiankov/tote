@@ -4,7 +4,7 @@ VERSION    ?= dev
 LDFLAGS    := -s -w -X $(MODULE)/internal/version.Version=$(VERSION)
 GOFLAGS    := -race
 
-.PHONY: build test lint fmt clean deps vet
+.PHONY: build test lint fmt clean deps vet docker-build
 
 build:
 	go build -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/$(BINARY)/
@@ -24,6 +24,9 @@ vet:
 
 clean:
 	rm -rf bin/ dist/
+
+docker-build:
+	docker build --build-arg VERSION=$(VERSION) -t $(BINARY):$(VERSION) .
 
 deps:
 	go mod download
