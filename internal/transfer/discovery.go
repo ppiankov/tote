@@ -65,7 +65,7 @@ func (r *Resolver) ResolveTagViaAgents(ctx context.Context, imageRef string) (st
 	}
 
 	logger := log.FromContext(ctx)
-	logger.V(1).Info("querying agents for tag", "image", imageRef, "agentCount", len(pods.Items))
+	logger.Info("querying agents for tag", "image", imageRef, "agentCount", len(pods.Items))
 
 	for _, pod := range pods.Items {
 		if pod.Status.PodIP == "" {
@@ -74,7 +74,7 @@ func (r *Resolver) ResolveTagViaAgents(ctx context.Context, imageRef string) (st
 		endpoint := fmt.Sprintf("%s:%d", pod.Status.PodIP, r.Port)
 		digest, err := resolveTagFromAgent(ctx, endpoint, imageRef)
 		if err != nil {
-			logger.V(1).Info("agent ResolveTag failed", "endpoint", endpoint, "error", err)
+			logger.Info("agent ResolveTag failed", "endpoint", endpoint, "node", pod.Spec.NodeName, "error", err)
 			continue
 		}
 		if digest == "" {
