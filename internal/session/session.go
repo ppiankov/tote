@@ -44,6 +44,21 @@ func (s *Store) Create(digest, sourceNode, targetNode string, ttl time.Duration)
 	return sess
 }
 
+// Register stores a session with a pre-existing token (created by the controller).
+// Used by agents to accept session tokens from the orchestrator.
+func (s *Store) Register(token, digest string, ttl time.Duration) Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sess := Session{
+		Token:     token,
+		Digest:    digest,
+		ExpiresAt: time.Now().Add(ttl),
+	}
+	s.sessions[token] = sess
+	return sess
+}
+
 // Validate returns the session for the given token if it exists and has not
 // expired. Expired sessions are deleted on access.
 func (s *Store) Validate(token string) (Session, bool) {

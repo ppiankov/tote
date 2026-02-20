@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -64,10 +65,9 @@ func (s *Server) PrepareExport(ctx context.Context, req *v1.PrepareExportRequest
 		return nil, fmt.Errorf("image %s not found locally", req.Digest)
 	}
 
-	// Validate the session exists (created by the controller via transfer orchestrator)
-	if _, ok := s.Sessions.Validate(req.SessionToken); !ok {
-		return nil, fmt.Errorf("invalid or expired session token")
-	}
+	// Register the session locally so ExportImage can look up the digest.
+	// The token was created by the controller's orchestrator.
+	s.Sessions.Register(req.SessionToken, req.Digest, 5*time.Minute)
 
 	return &v1.PrepareExportResponse{}, nil
 }
