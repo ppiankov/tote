@@ -40,6 +40,7 @@ spec:
             - name: containerd-socket
               mountPath: {{ .Values.agent.containerdSocket }}
           securityContext:
+            runAsUser: 0
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
