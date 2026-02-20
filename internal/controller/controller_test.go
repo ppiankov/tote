@@ -258,6 +258,38 @@ func TestReconcile_NotActionable(t *testing.T) {
 	}
 }
 
+func TestReconcile_TagOnlyResolvableViaNodeCache(t *testing.T) {
+	tag := "registry.internal:5000/app:v1.0"
+	// Node has both tag and digest in the same Names group.
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node-1"},
+		Status: corev1.NodeStatus{
+			Images: []corev1.ContainerImage{
+				{Names: []string{"registry.internal:5000/app@" + testDigest, tag}},
+			},
+		},
+	}
+	f := setupReconciler(
+		optedInNamespace("default"),
+		failingPod("default", "app", tag),
+		node,
+	)
+
+	_, err := f.reconciler.Reconcile(context.Background(), reconcileRequest("default", "app"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case event := <-f.recorder.Events:
+		if event == "" {
+			t.Error("expected salvageable event")
+		}
+	default:
+		t.Error("expected a salvageable event for tag resolved via node cache")
+	}
+}
+
 func TestReconcile_PodNotFound(t *testing.T) {
 	f := setupReconciler(optedInNamespace("default"))
 
