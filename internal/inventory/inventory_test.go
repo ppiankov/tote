@@ -118,3 +118,72 @@ func TestFindNodes_NodeWithNoImages(t *testing.T) {
 		t.Errorf("expected 0 nodes, got %d", len(nodes))
 	}
 }
+
+// nodeWithImageGroup creates a node with a single ContainerImage entry
+// whose Names list contains all provided names (simulates how kubelet
+// groups tag and digest references for the same image).
+func nodeWithImageGroup(name string, imageNames ...string) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Status: corev1.NodeStatus{
+			Images: []corev1.ContainerImage{
+				{Names: imageNames},
+			},
+		},
+	}
+}
+
+func TestFindNodesByTag_ResolvesDigest(t *testing.T) {
+	tag := "registry.internal:5000/app/api:v1.0"
+	finder := newFinder(
+		nodeWithImageGroup("node-1", "registry.internal:5000/app/api@"+testDigest, tag),
+		nodeWithImageGroup("node-2", "registry.internal:5000/app/api@"+testDigest, tag),
+		nodeWithImages("node-3", "other-image:latest"),
+	)
+
+	digest, nodes, err := finder.FindNodesByTag(context.Background(), tag)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if digest != testDigest {
+		t.Errorf("expected digest %s, got %s", testDigest, digest)
+	}
+	if len(nodes) != 2 {
+		t.Errorf("expected 2 nodes, got %d: %v", len(nodes), nodes)
+	}
+}
+
+func TestFindNodesByTag_NoMatch(t *testing.T) {
+	finder := newFinder(
+		nodeWithImageGroup("node-1", "registry/other@"+testDigest, "registry/other:v1"),
+	)
+
+	digest, nodes, err := finder.FindNodesByTag(context.Background(), "registry/missing:v1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if digest != "" {
+		t.Errorf("expected empty digest, got %s", digest)
+	}
+	if len(nodes) != 0 {
+		t.Errorf("expected 0 nodes, got %d", len(nodes))
+	}
+}
+
+func TestFindNodesByTag_TagWithoutDigestSibling(t *testing.T) {
+	// Node has the tag but no digest entry in the same Names group.
+	finder := newFinder(
+		nodeWithImages("node-1", "registry/app:v1"),
+	)
+
+	digest, nodes, err := finder.FindNodesByTag(context.Background(), "registry/app:v1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if digest != "" {
+		t.Errorf("expected empty digest, got %s", digest)
+	}
+	if len(nodes) != 0 {
+		t.Errorf("expected 0 nodes, got %d", len(nodes))
+	}
+}

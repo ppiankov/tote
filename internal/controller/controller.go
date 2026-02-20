@@ -63,30 +63,46 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		r.Metrics.RecordDetected()
 
 		res := resolver.Resolve(f.Image)
-		if !res.Actionable {
-			logger.Info("image not actionable (tag-only)", "container", f.ContainerName, "image", f.Image)
-			r.Metrics.RecordNotActionable()
-			r.Emitter.EmitNotActionable(&pod, f.Image)
-			continue
-		}
 
-		nodes, err := r.Finder.FindNodes(ctx, res.Digest)
-		if err != nil {
-			logger.Error(err, "failed to find nodes with image", "digest", res.Digest)
-			return reconcile.Result{}, err
+		var digest string
+		var nodes []string
+
+		if res.Actionable {
+			digest = res.Digest
+			var err error
+			nodes, err = r.Finder.FindNodes(ctx, digest)
+			if err != nil {
+				logger.Error(err, "failed to find nodes with image", "digest", digest)
+				return reconcile.Result{}, err
+			}
+		} else {
+			// Tag-only: try to resolve via Node.Status.Images.
+			var err error
+			digest, nodes, err = r.Finder.FindNodesByTag(ctx, f.Image)
+			if err != nil {
+				logger.Error(err, "failed to resolve tag", "image", f.Image)
+				return reconcile.Result{}, err
+			}
+			if digest == "" {
+				logger.Info("image not actionable (tag-only, no cached digest found)", "container", f.ContainerName, "image", f.Image)
+				r.Metrics.RecordNotActionable()
+				r.Emitter.EmitNotActionable(&pod, f.Image)
+				continue
+			}
+			logger.Info("resolved tag to digest via node cache", "container", f.ContainerName, "image", f.Image, "digest", digest)
 		}
 
 		if len(nodes) > 0 {
-			logger.Info("image salvageable", "container", f.ContainerName, "digest", res.Digest, "nodes", nodes)
+			logger.Info("image salvageable", "container", f.ContainerName, "digest", digest, "nodes", nodes)
 			r.Metrics.RecordSalvageable()
 			r.Emitter.EmitSalvageable(&pod, f.Image, nodes)
 
 			if r.Orchestrator != nil && pod.Spec.NodeName != "" {
-				if pod.Annotations[config.AnnotationSalvagedDigest] == res.Digest {
+				if pod.Annotations[config.AnnotationSalvagedDigest] == digest {
 					continue
 				}
-				if err := r.Orchestrator.Salvage(ctx, &pod, res.Digest, nodes[0]); err != nil {
-					logger.Error(err, "salvage failed", "digest", res.Digest)
+				if err := r.Orchestrator.Salvage(ctx, &pod, digest, nodes[0]); err != nil {
+					logger.Error(err, "salvage failed", "digest", digest)
 				}
 			}
 		}
