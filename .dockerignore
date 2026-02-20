@@ -1,0 +1,10 @@
+.git/
+.github/
+.claude/
+bin/
+dist/
+charts/
+docs/
+tote
+*.md
+LICENSE
