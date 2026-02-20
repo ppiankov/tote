@@ -11,11 +11,15 @@ import (
 type FakeImageStore struct {
 	mu     sync.Mutex
 	images map[string][]byte
+	tags   map[string]string // imageRef -> digest
 }
 
 // NewFakeImageStore creates an empty fake image store.
 func NewFakeImageStore() *FakeImageStore {
-	return &FakeImageStore{images: make(map[string][]byte)}
+	return &FakeImageStore{
+		images: make(map[string][]byte),
+		tags:   make(map[string]string),
+	}
 }
 
 // AddImage adds an image with the given digest and tar data.
@@ -23,6 +27,13 @@ func (f *FakeImageStore) AddImage(digest string, data []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.images[digest] = data
+}
+
+// AddTag maps an image reference to a digest.
+func (f *FakeImageStore) AddTag(imageRef, digest string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.tags[imageRef] = digest
 }
 
 // List returns all stored digests.
@@ -42,6 +53,17 @@ func (f *FakeImageStore) Has(_ context.Context, digest string) (bool, error) {
 	defer f.mu.Unlock()
 	_, ok := f.images[digest]
 	return ok, nil
+}
+
+// ResolveTag returns the digest for an image reference if mapped.
+func (f *FakeImageStore) ResolveTag(_ context.Context, imageRef string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.tags[imageRef]
+	if !ok {
+		return "", nil
+	}
+	return d, nil
 }
 
 // Export writes the stored tar data for the given digest.
@@ -74,9 +96,8 @@ type FailingImageStore struct {
 	Err error
 }
 
-func (f *FailingImageStore) List(_ context.Context) ([]string, error)              { return nil, f.Err }
-func (f *FailingImageStore) Has(_ context.Context, _ string) (bool, error)         { return false, f.Err }
-func (f *FailingImageStore) Export(_ context.Context, _ string, _ io.Writer) error { return f.Err }
-func (f *FailingImageStore) Import(_ context.Context, _ io.Reader) (string, error) {
-	return "", f.Err
-}
+func (f *FailingImageStore) List(_ context.Context) ([]string, error)               { return nil, f.Err }
+func (f *FailingImageStore) Has(_ context.Context, _ string) (bool, error)          { return false, f.Err }
+func (f *FailingImageStore) ResolveTag(_ context.Context, _ string) (string, error) { return "", f.Err }
+func (f *FailingImageStore) Export(_ context.Context, _ string, _ io.Writer) error  { return f.Err }
+func (f *FailingImageStore) Import(_ context.Context, _ io.Reader) (string, error)  { return "", f.Err }

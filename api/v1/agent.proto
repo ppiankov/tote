@@ -14,6 +14,9 @@ service ToteAgent {
 
   // Controller -> agent: list local image digests.
   rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
+
+  // Controller -> agent: resolve a tag reference to a digest via containerd.
+  rpc ResolveTag(ResolveTagRequest) returns (ResolveTagResponse);
 }
 
 message PrepareExportRequest {
@@ -42,4 +45,11 @@ message ImportFromResponse {
 message ListImagesRequest {}
 message ListImagesResponse {
   repeated string digests = 1;
+}
+
+message ResolveTagRequest {
+  string image_ref = 1;
+}
+message ResolveTagResponse {
+  string digest = 1;
 }
