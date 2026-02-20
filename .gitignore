@@ -2,3 +2,4 @@ CLAUDE.local.md
 bin/
 dist/
 *.exe
+.claude/skills/
