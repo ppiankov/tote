@@ -10,10 +10,12 @@ spec:
   selector:
     matchLabels:
       {{- include "tote.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controller
   template:
     metadata:
       labels:
         {{- include "tote.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
     spec:
       serviceAccountName: {{ include "tote.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
