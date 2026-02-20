@@ -87,6 +87,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 
 			// Fallback: query agents directly via containerd (bypasses kubelet 50-image limit).
 			if digest == "" && r.AgentResolver != nil {
+				logger.Info("querying agents for tag resolution", "container", f.ContainerName, "image", f.Image)
 				var sourceNode string
 				digest, sourceNode, err = r.AgentResolver.ResolveTagViaAgents(ctx, f.Image)
 				if err != nil {
@@ -95,6 +96,8 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 				if digest != "" && sourceNode != "" {
 					nodes = []string{sourceNode}
 					logger.Info("resolved tag via agent", "container", f.ContainerName, "image", f.Image, "digest", digest, "node", sourceNode)
+				} else if err == nil {
+					logger.Info("agents returned no digest", "container", f.ContainerName, "image", f.Image)
 				}
 			}
 
