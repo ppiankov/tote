@@ -81,13 +81,12 @@ func TestPrepareExport_Success(t *testing.T) {
 	store := NewFakeImageStore()
 	store.AddImage("sha256:aaa", []byte("data"))
 	sessions := session.NewStore()
-	sess := sessions.Create("sha256:aaa", "node-a", "node-b", 5*time.Minute)
 
 	client, cleanup := startTestServer(t, store, sessions)
 	defer cleanup()
 
 	_, err := client.PrepareExport(context.Background(), &v1.PrepareExportRequest{
-		SessionToken: sess.Token,
+		SessionToken: "test-token",
 		Digest:       "sha256:aaa",
 	})
 	if err != nil {
@@ -98,13 +97,12 @@ func TestPrepareExport_Success(t *testing.T) {
 func TestPrepareExport_ImageNotFound(t *testing.T) {
 	store := NewFakeImageStore()
 	sessions := session.NewStore()
-	sess := sessions.Create("sha256:missing", "node-a", "node-b", 5*time.Minute)
 
 	client, cleanup := startTestServer(t, store, sessions)
 	defer cleanup()
 
 	_, err := client.PrepareExport(context.Background(), &v1.PrepareExportRequest{
-		SessionToken: sess.Token,
+		SessionToken: "test-token",
 		Digest:       "sha256:missing",
 	})
 	if err == nil {
@@ -112,7 +110,23 @@ func TestPrepareExport_ImageNotFound(t *testing.T) {
 	}
 }
 
-func TestPrepareExport_InvalidSession(t *testing.T) {
+func TestPrepareExport_MissingFields(t *testing.T) {
+	store := NewFakeImageStore()
+	sessions := session.NewStore()
+
+	client, cleanup := startTestServer(t, store, sessions)
+	defer cleanup()
+
+	_, err := client.PrepareExport(context.Background(), &v1.PrepareExportRequest{
+		SessionToken: "",
+		Digest:       "",
+	})
+	if err == nil {
+		t.Fatal("expected error for missing fields")
+	}
+}
+
+func TestPrepareExport_RegistersSession(t *testing.T) {
 	store := NewFakeImageStore()
 	store.AddImage("sha256:aaa", []byte("data"))
 	sessions := session.NewStore()
@@ -120,12 +134,18 @@ func TestPrepareExport_InvalidSession(t *testing.T) {
 	client, cleanup := startTestServer(t, store, sessions)
 	defer cleanup()
 
+	// PrepareExport should register the token so ExportImage can use it.
 	_, err := client.PrepareExport(context.Background(), &v1.PrepareExportRequest{
-		SessionToken: "bad-token",
+		SessionToken: "controller-token",
 		Digest:       "sha256:aaa",
 	})
-	if err == nil {
-		t.Fatal("expected error for invalid session")
+	if err != nil {
+		t.Fatalf("PrepareExport: %v", err)
+	}
+
+	// Verify session was registered.
+	if sessions.Len() != 1 {
+		t.Errorf("expected 1 session, got %d", sessions.Len())
 	}
 }
 
