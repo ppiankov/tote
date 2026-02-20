@@ -182,6 +182,52 @@ func TestExportImage_InvalidSession(t *testing.T) {
 	}
 }
 
+func TestResolveTag_Found(t *testing.T) {
+	store := NewFakeImageStore()
+	store.AddTag("registry.internal:5000/app:v1.0", "sha256:aaa")
+	sessions := session.NewStore()
+
+	client, cleanup := startTestServer(t, store, sessions)
+	defer cleanup()
+
+	resp, err := client.ResolveTag(context.Background(), &v1.ResolveTagRequest{ImageRef: "registry.internal:5000/app:v1.0"})
+	if err != nil {
+		t.Fatalf("ResolveTag: %v", err)
+	}
+	if resp.Digest != "sha256:aaa" {
+		t.Errorf("expected sha256:aaa, got %s", resp.Digest)
+	}
+}
+
+func TestResolveTag_NotFound(t *testing.T) {
+	store := NewFakeImageStore()
+	sessions := session.NewStore()
+
+	client, cleanup := startTestServer(t, store, sessions)
+	defer cleanup()
+
+	resp, err := client.ResolveTag(context.Background(), &v1.ResolveTagRequest{ImageRef: "missing:latest"})
+	if err != nil {
+		t.Fatalf("ResolveTag: %v", err)
+	}
+	if resp.Digest != "" {
+		t.Errorf("expected empty digest, got %s", resp.Digest)
+	}
+}
+
+func TestResolveTag_EmptyRef(t *testing.T) {
+	store := NewFakeImageStore()
+	sessions := session.NewStore()
+
+	client, cleanup := startTestServer(t, store, sessions)
+	defer cleanup()
+
+	_, err := client.ResolveTag(context.Background(), &v1.ResolveTagRequest{ImageRef: ""})
+	if err == nil {
+		t.Fatal("expected error for empty image_ref")
+	}
+}
+
 func TestListImages_StoreError(t *testing.T) {
 	store := &FailingImageStore{Err: fmt.Errorf("containerd down")}
 	sessions := session.NewStore()

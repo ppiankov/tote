@@ -189,3 +189,15 @@ func (s *Server) ListImages(ctx context.Context, _ *v1.ListImagesRequest) (*v1.L
 	}
 	return &v1.ListImagesResponse{Digests: digests}, nil
 }
+
+// ResolveTag looks up an image reference in containerd and returns its digest.
+func (s *Server) ResolveTag(ctx context.Context, req *v1.ResolveTagRequest) (*v1.ResolveTagResponse, error) {
+	if req.ImageRef == "" {
+		return nil, fmt.Errorf("image_ref is required")
+	}
+	digest, err := s.Store.ResolveTag(ctx, req.ImageRef)
+	if err != nil {
+		return nil, fmt.Errorf("resolving tag: %w", err)
+	}
+	return &v1.ResolveTagResponse{Digest: digest}, nil
+}

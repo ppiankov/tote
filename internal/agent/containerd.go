@@ -15,6 +15,7 @@ import (
 type ImageStore interface {
 	List(ctx context.Context) ([]string, error)
 	Has(ctx context.Context, digest string) (bool, error)
+	ResolveTag(ctx context.Context, imageRef string) (string, error)
 	Export(ctx context.Context, digest string, w io.Writer) error
 	Import(ctx context.Context, r io.Reader) (string, error)
 }
@@ -55,6 +56,19 @@ func (s *ContainerdStore) List(ctx context.Context) ([]string, error) {
 		}
 	}
 	return digests, nil
+}
+
+// ResolveTag looks up an image reference (e.g. "registry/repo:tag") in
+// containerd and returns the digest if found. Returns empty string if not found.
+func (s *ContainerdStore) ResolveTag(ctx context.Context, imageRef string) (string, error) {
+	imgs, err := s.client.ImageService().List(ctx, "name=="+imageRef)
+	if err != nil {
+		return "", err
+	}
+	if len(imgs) == 0 {
+		return "", nil
+	}
+	return imgs[0].Target.Digest.String(), nil
 }
 
 // Has returns true if the given digest exists in containerd.

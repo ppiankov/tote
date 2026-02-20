@@ -151,6 +151,7 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 	if agentNamespace != "" {
 		sessions := session.NewStore()
 		resolver := transfer.NewResolver(mgr.GetClient(), agentNamespace, agentGRPCPort)
+		reconciler.AgentResolver = resolver
 		reconciler.Orchestrator = transfer.NewOrchestrator(
 			sessions, resolver, emitter, m, mgr.GetClient(),
 			maxConcurrentSalvages, sessionTTL,

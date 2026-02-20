@@ -389,6 +389,94 @@ func (x *ListImagesResponse) GetDigests() []string {
 	return nil
 }
 
+type ResolveTagRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ImageRef      string                 `protobuf:"bytes,1,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveTagRequest) Reset() {
+	*x = ResolveTagRequest{}
+	mi := &file_api_v1_agent_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveTagRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveTagRequest) ProtoMessage() {}
+
+func (x *ResolveTagRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_agent_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveTagRequest.ProtoReflect.Descriptor instead.
+func (*ResolveTagRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_agent_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ResolveTagRequest) GetImageRef() string {
+	if x != nil {
+		return x.ImageRef
+	}
+	return ""
+}
+
+type ResolveTagResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Digest        string                 `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveTagResponse) Reset() {
+	*x = ResolveTagResponse{}
+	mi := &file_api_v1_agent_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveTagResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveTagResponse) ProtoMessage() {}
+
+func (x *ResolveTagResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_agent_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveTagResponse.ProtoReflect.Descriptor instead.
+func (*ResolveTagResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_agent_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ResolveTagResponse) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
 var File_api_v1_agent_proto protoreflect.FileDescriptor
 
 const file_api_v1_agent_proto_rawDesc = "" +
@@ -411,14 +499,20 @@ const file_api_v1_agent_proto_rawDesc = "" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"\x13\n" +
 	"\x11ListImagesRequest\".\n" +
 	"\x12ListImagesResponse\x12\x18\n" +
-	"\adigests\x18\x01 \x03(\tR\adigests2\xab\x02\n" +
+	"\adigests\x18\x01 \x03(\tR\adigests\"0\n" +
+	"\x11ResolveTagRequest\x12\x1b\n" +
+	"\timage_ref\x18\x01 \x01(\tR\bimageRef\",\n" +
+	"\x12ResolveTagResponse\x12\x16\n" +
+	"\x06digest\x18\x01 \x01(\tR\x06digest2\xf2\x02\n" +
 	"\tToteAgent\x12N\n" +
 	"\rPrepareExport\x12\x1d.tote.v1.PrepareExportRequest\x1a\x1e.tote.v1.PrepareExportResponse\x12@\n" +
 	"\vExportImage\x12\x1b.tote.v1.ExportImageRequest\x1a\x12.tote.v1.DataChunk0\x01\x12E\n" +
 	"\n" +
 	"ImportFrom\x12\x1a.tote.v1.ImportFromRequest\x1a\x1b.tote.v1.ImportFromResponse\x12E\n" +
 	"\n" +
-	"ListImages\x12\x1a.tote.v1.ListImagesRequest\x1a\x1b.tote.v1.ListImagesResponseB!Z\x1fgithub.com/ppiankov/tote/api/v1b\x06proto3"
+	"ListImages\x12\x1a.tote.v1.ListImagesRequest\x1a\x1b.tote.v1.ListImagesResponse\x12E\n" +
+	"\n" +
+	"ResolveTag\x12\x1a.tote.v1.ResolveTagRequest\x1a\x1b.tote.v1.ResolveTagResponseB!Z\x1fgithub.com/ppiankov/tote/api/v1b\x06proto3"
 
 var (
 	file_api_v1_agent_proto_rawDescOnce sync.Once
@@ -432,7 +526,7 @@ func file_api_v1_agent_proto_rawDescGZIP() []byte {
 	return file_api_v1_agent_proto_rawDescData
 }
 
-var file_api_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_api_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_api_v1_agent_proto_goTypes = []any{
 	(*PrepareExportRequest)(nil),  // 0: tote.v1.PrepareExportRequest
 	(*PrepareExportResponse)(nil), // 1: tote.v1.PrepareExportResponse
@@ -442,18 +536,22 @@ var file_api_v1_agent_proto_goTypes = []any{
 	(*ImportFromResponse)(nil),    // 5: tote.v1.ImportFromResponse
 	(*ListImagesRequest)(nil),     // 6: tote.v1.ListImagesRequest
 	(*ListImagesResponse)(nil),    // 7: tote.v1.ListImagesResponse
+	(*ResolveTagRequest)(nil),     // 8: tote.v1.ResolveTagRequest
+	(*ResolveTagResponse)(nil),    // 9: tote.v1.ResolveTagResponse
 }
 var file_api_v1_agent_proto_depIdxs = []int32{
 	0, // 0: tote.v1.ToteAgent.PrepareExport:input_type -> tote.v1.PrepareExportRequest
 	2, // 1: tote.v1.ToteAgent.ExportImage:input_type -> tote.v1.ExportImageRequest
 	4, // 2: tote.v1.ToteAgent.ImportFrom:input_type -> tote.v1.ImportFromRequest
 	6, // 3: tote.v1.ToteAgent.ListImages:input_type -> tote.v1.ListImagesRequest
-	1, // 4: tote.v1.ToteAgent.PrepareExport:output_type -> tote.v1.PrepareExportResponse
-	3, // 5: tote.v1.ToteAgent.ExportImage:output_type -> tote.v1.DataChunk
-	5, // 6: tote.v1.ToteAgent.ImportFrom:output_type -> tote.v1.ImportFromResponse
-	7, // 7: tote.v1.ToteAgent.ListImages:output_type -> tote.v1.ListImagesResponse
-	4, // [4:8] is the sub-list for method output_type
-	0, // [0:4] is the sub-list for method input_type
+	8, // 4: tote.v1.ToteAgent.ResolveTag:input_type -> tote.v1.ResolveTagRequest
+	1, // 5: tote.v1.ToteAgent.PrepareExport:output_type -> tote.v1.PrepareExportResponse
+	3, // 6: tote.v1.ToteAgent.ExportImage:output_type -> tote.v1.DataChunk
+	5, // 7: tote.v1.ToteAgent.ImportFrom:output_type -> tote.v1.ImportFromResponse
+	7, // 8: tote.v1.ToteAgent.ListImages:output_type -> tote.v1.ListImagesResponse
+	9, // 9: tote.v1.ToteAgent.ResolveTag:output_type -> tote.v1.ResolveTagResponse
+	5, // [5:10] is the sub-list for method output_type
+	0, // [0:5] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -470,7 +568,7 @@ func file_api_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_agent_proto_rawDesc), len(file_api_v1_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

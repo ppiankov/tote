@@ -21,12 +21,13 @@ import (
 
 // PodReconciler watches Pods for image pull failures.
 type PodReconciler struct {
-	Client       client.Client
-	Config       config.Config
-	Finder       *inventory.Finder
-	Emitter      *events.Emitter
-	Metrics      *metrics.Counters
-	Orchestrator *transfer.Orchestrator
+	Client        client.Client
+	Config        config.Config
+	Finder        *inventory.Finder
+	Emitter       *events.Emitter
+	Metrics       *metrics.Counters
+	Orchestrator  *transfer.Orchestrator
+	AgentResolver *transfer.Resolver
 }
 
 // Reconcile handles a single Pod reconciliation.
@@ -76,20 +77,36 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 				return reconcile.Result{}, err
 			}
 		} else {
-			// Tag-only: try to resolve via Node.Status.Images.
+			// Tag-only: try to resolve via Node.Status.Images first.
 			var err error
 			digest, nodes, err = r.Finder.FindNodesByTag(ctx, f.Image)
 			if err != nil {
 				logger.Error(err, "failed to resolve tag", "image", f.Image)
 				return reconcile.Result{}, err
 			}
+
+			// Fallback: query agents directly via containerd (bypasses kubelet 50-image limit).
+			if digest == "" && r.AgentResolver != nil {
+				var sourceNode string
+				digest, sourceNode, err = r.AgentResolver.ResolveTagViaAgents(ctx, f.Image)
+				if err != nil {
+					logger.Error(err, "agent tag resolution failed", "image", f.Image)
+				}
+				if digest != "" && sourceNode != "" {
+					nodes = []string{sourceNode}
+					logger.Info("resolved tag via agent", "container", f.ContainerName, "image", f.Image, "digest", digest, "node", sourceNode)
+				}
+			}
+
 			if digest == "" {
 				logger.Info("image not actionable (tag-only, no cached digest found)", "container", f.ContainerName, "image", f.Image)
 				r.Metrics.RecordNotActionable()
 				r.Emitter.EmitNotActionable(&pod, f.Image)
 				continue
 			}
-			logger.Info("resolved tag to digest via node cache", "container", f.ContainerName, "image", f.Image, "digest", digest)
+			if len(nodes) == 0 {
+				logger.Info("resolved tag to digest via node cache", "container", f.ContainerName, "image", f.Image, "digest", digest)
+			}
 		}
 
 		if len(nodes) > 0 {
