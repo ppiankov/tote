@@ -16,6 +16,10 @@ spec:
         {{- include "tote.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "tote.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
