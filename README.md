@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/ppiankov/tote)](https://goreportcard.com/report/github.com/ppiankov/tote)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Emergency Kubernetes operator that detects image pull failures and finds which nodes still have the image cached.
+Emergency Kubernetes operator that detects image pull failures, finds cached copies on other nodes, and salvages images via node-to-node transfer.
 
 ---
 
@@ -13,7 +13,7 @@ Emergency Kubernetes operator that detects image pull failures and finds which n
 
 Kubernetes clusters with long-lived workloads lose images. Registries get cleaned. Artifacts get deleted. Harbors go down. Nobody has the Dockerfile anymore. Pods crash-loop with `ImagePullBackOff` while the exact image sits cached on another node, quietly working.
 
-tote detects this situation and tells you about it — loudly, with shame, and with evidence.
+tote detects this situation, finds which nodes still have the image, and transfers it to where it's needed — automatically, if you opt in.
 
 **If this tool ever feels comfortable, you've used it wrong.**
 
@@ -21,12 +21,12 @@ tote detects this situation and tells you about it — loudly, with shame, and w
 
 - A Kubernetes operator that watches for `ImagePullBackOff` and `ErrImagePull`
 - A detector that finds which cluster nodes still have the exact image digest cached
-- A loud alarm that emits Kubernetes Warning events with node names and remediation hints
+- A salvage engine that transfers images node-to-node via gRPC agents and containerd
+- A loud alarm that emits Kubernetes Warning events with node names
 - An emergency tool — a fire extinguisher, not plumbing
 
 ## What tote is NOT
 
-- **NOT a remediation tool** — v0.1 detects and reports, it does not move images or modify workloads
 - **NOT a replacement for proper CI/CD** — fix your build pipeline, tote just buys you time
 - **NOT a security tool** — it does not validate signatures, provenance, or supply chain integrity
 - **NOT invisible** — every detection emits a Warning event that says "This is technical debt"
@@ -130,11 +130,25 @@ Warning  ImageNotActionable  Not actionable: image my-app:latest uses tag, not d
 
 ### CLI flags
 
+**Controller** (`tote` or `tote controller`):
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--enabled` | `true` | Global kill switch. Set to `false` to disable all detection. |
 | `--metrics-addr` | `:8080` | Bind address for the Prometheus metrics endpoint. |
-| `--version` | | Print version and exit. |
+| `--agent-namespace` | | Namespace where tote agents run (required for salvage). |
+| `--agent-grpc-port` | `9090` | gRPC port for agent communication. |
+| `--max-concurrent-salvages` | `2` | Max parallel salvage operations. |
+| `--max-image-size` | `2147483648` | Max image size in bytes for salvage (0 = no limit). |
+| `--session-ttl` | `5m` | Session lifetime for salvage operations. |
+
+**Agent** (`tote agent`):
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--containerd-socket` | `/run/containerd/containerd.sock` | Path to containerd socket. |
+| `--grpc-port` | `9090` | gRPC listen port. |
+| `--metrics-addr` | `:8081` | Bind address for the Prometheus metrics endpoint. |
 
 ### Annotations
 
@@ -160,6 +174,9 @@ The following namespaces are **always excluded**, regardless of annotations:
 | `tote_detected_failures_total` | Counter | Total image pull failures detected on opted-in pods. |
 | `tote_salvageable_images_total` | Counter | Failures where the image digest was found cached on cluster nodes. |
 | `tote_not_actionable_total` | Counter | Failures where the image uses a tag instead of a digest. |
+| `tote_salvage_attempts_total` | Counter | Total salvage transfer attempts. |
+| `tote_salvage_successes_total` | Counter | Successful image salvages. |
+| `tote_salvage_failures_total` | Counter | Failed salvage attempts. |
 
 If `tote_salvageable_images_total` is non-zero, you have technical debt. If it stays non-zero, you have a process problem.
 
@@ -174,7 +191,10 @@ metadata:
   name: tote
 rules:
   - apiGroups: [""]
-    resources: [pods, namespaces, nodes]
+    resources: [pods]
+    verbs: [get, list, watch, patch, delete]
+  - apiGroups: [""]
+    resources: [nodes, namespaces]
     verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [events]
@@ -184,10 +204,12 @@ rules:
     verbs: [create, patch]
 ```
 
+Pod `patch` is for salvage annotations. Pod `delete` is for fast recovery after salvage (only pods with owner references).
+
 ## Architecture
 
 ```
-cmd/tote/main.go                  Cobra CLI → controller-runtime manager
+cmd/tote/main.go                  Cobra CLI: controller + agent subcommands
 internal/
   version/version.go              Build-time version via LDFLAGS
   config/config.go                Kill switch, denied namespaces, annotation constants
@@ -197,6 +219,9 @@ internal/
   events/events.go                Emit structured Kubernetes Warning events
   metrics/metrics.go              Prometheus counters
   controller/controller.go        PodReconciler wiring all packages together
+  agent/                          containerd image store + gRPC agent server
+  session/session.go              In-memory session store for transfer auth
+  transfer/                       Orchestrator + agent endpoint resolver
 ```
 
 ### Reconciliation flow
@@ -214,17 +239,33 @@ Pod event received
   │
   └─ For each failing container:
       ├─ resolver.Resolve() → has digest?
-      │   └─ Tag-only → emit NotActionable event + metric
+      │   ├─ Tag-only → try Node.Status.Images → try agents → emit NotActionable
+      │   └─ Has digest → continue
       │
-      └─ inventory.FindNodes() → which nodes have the digest?
-          └─ Nodes found → emit Salvageable event + metric
+      ├─ inventory.FindNodes() → which nodes have the digest?
+      │   └─ No nodes → skip
+      │
+      ├─ emit Salvageable event + metric
+      │
+      └─ Orchestrator configured?
+          ├─ Already salvaged (annotation)? → skip
+          ├─ Source == target node? → skip
+          ├─ Image too large? → emit failure event, skip
+          │
+          └─ Salvage:
+              ├─ PrepareExport on source agent (verify + get size)
+              ├─ ImportFrom on target agent (stream image)
+              ├─ Delete pod (owned) or annotate (standalone)
+              └─ Pod recreated by owning controller → starts immediately
 ```
 
 ### How node inventory works
 
-tote reads `Node.Status.Images` from the Kubernetes API — the kubelet already reports which container images are cached on each node. No DaemonSet required, no node-level agent, no containerd access.
+tote uses two methods to find cached images:
 
-This means tote needs only **read access** to work. It never touches your nodes, your containers, or your workloads.
+1. **Node.Status.Images** (no agent required): The kubelet reports which images are cached on each node. Limited to 50 images by default (`--node-status-max-images`).
+
+2. **Agent queries** (when deployed): The tote agent DaemonSet queries containerd directly, bypassing the 50-image limit. Also resolves tags to digests as a fallback.
 
 ## Known limitations
 
@@ -242,7 +283,7 @@ This means tote needs only **read access** to work. It never touches your nodes,
 
 ## Roadmap
 
-### v0.1.0 (current) — Detection
+### v0.1.0 — Detection
 
 - [x] Watch pods for `ImagePullBackOff` / `ErrImagePull`
 - [x] Double opt-in via namespace + pod annotations
@@ -253,25 +294,30 @@ This means tote needs only **read access** to work. It never touches your nodes,
 - [x] Global kill switch
 - [x] Default-deny for critical namespaces
 
-### v0.2.0 — Salvage
+### v0.2.0 (current) — Node-local salvage
 
-- [ ] DaemonSet node agent for image export via containerd/CRI
-- [ ] Admin-configured destination registry
-- [ ] Image export → push → workload rewrite flow
-- [ ] One-shot per digest (no infinite loops)
-- [ ] TTL on salvaged images
-- [ ] Audit receipts (before/after/evidence bundle)
+- [x] DaemonSet node agent for image export/import via containerd
+- [x] Node-to-node image transfer via gRPC streaming
+- [x] Tag resolution via agents (bypasses kubelet 50-image limit)
+- [x] One-shot per digest (annotation guard)
+- [x] Rate limiting (max concurrent salvages)
+- [x] Max image size guard
+- [x] Pod restart after salvage (fast recovery)
+- [x] Helm chart
+
+### v0.3 — Registry push and observability
+
+- [ ] Push salvaged images to backup registry
+- [ ] Grafana dashboard
 - [ ] Leader election
-- [ ] Rate limiting (max concurrent salvages, per-namespace caps)
-- [ ] Max image size guard
+- [ ] mTLS between agents
 
 ### Future
 
+- [ ] CRD for salvage tracking (`SalvageRecord`)
+- [ ] Detect `CreateContainerError` (corrupt/incomplete images)
 - [ ] Owner workload annotation inheritance
-- [ ] Namespace-level rate limiting
 - [ ] Webhook/Slack notifications
-- [x] Helm chart
-- [ ] Predicate filtering (only enqueue pods with waiting containers)
 
 ## Development
 
