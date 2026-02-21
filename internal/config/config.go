@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 const (
 	// AnnotationNamespaceAllow is required on the Namespace for tote to act.
@@ -99,4 +102,28 @@ func New() Config {
 // IsDenied returns true if the namespace must not be processed.
 func (c Config) IsDenied(namespace string) bool {
 	return c.DeniedNamespaces[namespace]
+}
+
+// TLSEnabled returns true if all three TLS paths are set.
+func TLSEnabled(cert, key, ca string) bool {
+	return cert != "" && key != "" && ca != ""
+}
+
+// ValidateTLSFlags returns an error if TLS flags are partially set.
+// All three flags must be set together, or none.
+func ValidateTLSFlags(cert, key, ca string) error {
+	set := 0
+	if cert != "" {
+		set++
+	}
+	if key != "" {
+		set++
+	}
+	if ca != "" {
+		set++
+	}
+	if set != 0 && set != 3 {
+		return fmt.Errorf("all three TLS flags (--tls-cert, --tls-key, --tls-ca) must be set together, got %d of 3", set)
+	}
+	return nil
 }

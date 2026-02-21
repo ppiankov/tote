@@ -49,10 +49,21 @@ spec:
             {{- if .Values.controller.backupRegistryInsecure }}
             - --backup-registry-insecure=true
             {{- end }}
+            {{- if .Values.tls.enabled }}
+            - --tls-cert=/etc/tote/tls/tls.crt
+            - --tls-key=/etc/tote/tls/tls.key
+            - --tls-ca=/etc/tote/tls/ca.crt
+            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ (split ":" .Values.config.metricsAddr)._1 | default 8080 }}
               protocol: TCP
+          {{- if .Values.tls.enabled }}
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /etc/tote/tls
+              readOnly: true
+          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -73,4 +84,10 @@ spec:
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tls.enabled }}
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: {{ .Values.tls.secretName }}
       {{- end }}

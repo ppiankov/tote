@@ -47,6 +47,14 @@ controller:
   # Allow HTTP connections to backup registry.
   backupRegistryInsecure: false
 
+# mTLS for gRPC communication between controller and agents.
+# Requires a Kubernetes TLS Secret with ca.crt, tls.crt, tls.key.
+# Compatible with cert-manager Certificate resources.
+tls:
+  enabled: false
+  # Name of the Secret containing TLS certs. Must exist in the release namespace.
+  secretName: ""
+
 # Grafana dashboard ConfigMap (requires Grafana sidecar).
 dashboard:
   enabled: true

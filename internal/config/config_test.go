@@ -48,3 +48,30 @@ func TestIsDenied_AllowedNamespace(t *testing.T) {
 		t.Error("expected 'default' namespace to not be denied")
 	}
 }
+
+func TestTLSEnabled(t *testing.T) {
+	if TLSEnabled("", "", "") {
+		t.Error("expected false when all empty")
+	}
+	if !TLSEnabled("/cert", "/key", "/ca") {
+		t.Error("expected true when all set")
+	}
+	if TLSEnabled("/cert", "", "") {
+		t.Error("expected false when partially set")
+	}
+}
+
+func TestValidateTLSFlags(t *testing.T) {
+	if err := ValidateTLSFlags("", "", ""); err != nil {
+		t.Errorf("all empty should be valid: %v", err)
+	}
+	if err := ValidateTLSFlags("/cert", "/key", "/ca"); err != nil {
+		t.Errorf("all set should be valid: %v", err)
+	}
+	if err := ValidateTLSFlags("/cert", "", ""); err == nil {
+		t.Error("1 of 3 should be invalid")
+	}
+	if err := ValidateTLSFlags("/cert", "/key", ""); err == nil {
+		t.Error("2 of 3 should be invalid")
+	}
+}
