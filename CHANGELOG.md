@@ -7,22 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-02-22
-
-### Added
-
-- `SalvageRecord` CRD (`tote.dev/v1alpha1`) for persistent salvage tracking (WO-10)
-- Idempotency via SalvageRecord lookup instead of pod annotations
-- CRD manifest generation via controller-gen (`make generate`)
-- Helm CRD auto-install (`charts/tote/crds/`)
-- RBAC: `tote.dev/salvagerecords` permissions
-
-### Removed
-
-- Pod annotations `tote.dev/salvaged-digest` and `tote.dev/imported-at` (replaced by SalvageRecord CRD)
-- Pod `patch` RBAC verb (no longer needed)
-
-## [0.4.0] - 2026-02-21
+## [0.4.0] - 2026-02-22
 
 ### Added
 
@@ -31,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mTLS for gRPC communication via `--tls-cert`, `--tls-key`, `--tls-ca` (WO-8)
 - Leader election for multi-replica controller safety (WO-9)
 - Detect and clean `CreateContainerError` from corrupt/incomplete images (WO-11)
+- `SalvageRecord` CRD (`tote.dev/v1alpha1`) for persistent salvage tracking (WO-10)
+- CRD manifest generation via controller-gen (`make generate`)
+- Helm CRD auto-install (`charts/tote/crds/`)
 - Prometheus metrics: `tote_corrupt_images_total`, `tote_push_{attempts,successes,failures}_total`
 - Kubernetes events: `ImageCorrupt`, `ImagePushed`, `ImagePushFailed`
 - CLI flags: `--backup-registry`, `--backup-registry-secret`, `--backup-registry-insecure`, `--tls-cert`, `--tls-key`, `--tls-ca`
@@ -38,13 +26,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `internal/tlsutil` package for mTLS credential loading
 - `PushImage` and `RemoveImage` gRPC RPCs
 - Helm values: `tls.enabled`, `tls.secretName`, `dashboard.enabled`, `controller.backupRegistry*`
-- RBAC: secrets `get` for registry credentials, leases for leader election
+- RBAC: secrets `get` for registry credentials, leases for leader election, `tote.dev/salvagerecords`
 
 ### Changed
 
 - CI split into 4 parallel jobs: test, lint-fast, lint-full, build (WO-7)
 - Full linter set (errcheck, staticcheck, unused) runs in CI via `.golangci-full.yml`
-- ClusterRole: added `coordination.k8s.io/leases` and `secrets` permissions
+- ClusterRole: added `coordination.k8s.io/leases`, `secrets`, and `salvagerecords` permissions
+- Idempotency guard switched from pod annotations to SalvageRecord lookup
+
+### Removed
+
+- Pod annotations `tote.dev/salvaged-digest` and `tote.dev/imported-at` (replaced by SalvageRecord CRD)
+- Pod `patch` RBAC verb (no longer needed)
 
 ## [0.3.0] - 2026-02-20
 
@@ -103,8 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-deny for critical namespaces: `kube-system`, `kube-public`, `kube-node-lease`
 - CLI flags: `--enabled`, `--metrics-addr`, `--version`
 
-[Unreleased]: https://github.com/ppiankov/tote/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/ppiankov/tote/compare/v0.4.0...v0.5.0
+[Unreleased]: https://github.com/ppiankov/tote/compare/v0.4.0...HEAD
 [0.4.0]: https://github.com/ppiankov/tote/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ppiankov/tote/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ppiankov/tote/releases/tag/v0.2.0
