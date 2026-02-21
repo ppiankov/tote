@@ -3,7 +3,6 @@ package transfer
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -273,22 +272,4 @@ func (o *Orchestrator) pushImage(ctx context.Context, endpoint, digest, targetRe
 		return fmt.Errorf("%s", resp.Error)
 	}
 	return nil
-}
-
-// findImageRef looks up the original image reference from the pod spec.
-func findImageRef(pod *corev1.Pod, digest string) string {
-	for _, c := range pod.Spec.Containers {
-		if strings.Contains(c.Image, digest) {
-			return c.Image
-		}
-	}
-	for _, c := range pod.Spec.InitContainers {
-		if strings.Contains(c.Image, digest) {
-			return c.Image
-		}
-	}
-	if len(pod.Spec.Containers) == 1 {
-		return pod.Spec.Containers[0].Image
-	}
-	return ""
 }
