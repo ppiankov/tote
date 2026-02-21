@@ -21,6 +21,7 @@ import (
 	"github.com/ppiankov/tote/internal/inventory"
 	"github.com/ppiankov/tote/internal/metrics"
 	"github.com/ppiankov/tote/internal/session"
+	"github.com/ppiankov/tote/internal/tlsutil"
 	"github.com/ppiankov/tote/internal/transfer"
 	"github.com/ppiankov/tote/internal/version"
 )
@@ -66,13 +67,19 @@ func newControllerCmd() *cobra.Command {
 		backupRegistry         string
 		backupRegistrySecret   string
 		backupRegistryInsecure bool
+		tlsCert                string
+		tlsKey                 string
+		tlsCA                  string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "controller",
 		Short: "Run the tote controller (detects failures, orchestrates salvage)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure)
+			if err := config.ValidateTLSFlags(tlsCert, tlsKey, tlsCA); err != nil {
+				return err
+			}
+			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure, tlsCert, tlsKey, tlsCA)
 		},
 	}
 
@@ -86,6 +93,9 @@ func newControllerCmd() *cobra.Command {
 	cmd.Flags().StringVar(&backupRegistry, "backup-registry", "", "registry host to push salvaged images (empty = disabled)")
 	cmd.Flags().StringVar(&backupRegistrySecret, "backup-registry-secret", "", "name of dockerconfigjson Secret for backup registry credentials")
 	cmd.Flags().BoolVar(&backupRegistryInsecure, "backup-registry-insecure", false, "allow HTTP connections to backup registry")
+	cmd.Flags().StringVar(&tlsCert, "tls-cert", "", "path to TLS certificate file (enables mTLS when all three TLS flags are set)")
+	cmd.Flags().StringVar(&tlsKey, "tls-key", "", "path to TLS private key file")
+	cmd.Flags().StringVar(&tlsCA, "tls-ca", "", "path to CA certificate file")
 
 	return cmd
 }
@@ -95,24 +105,33 @@ func newAgentCmd() *cobra.Command {
 		containerdSocket string
 		grpcPort         int
 		metricsAddr      string
+		tlsCert          string
+		tlsKey           string
+		tlsCA            string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "agent",
 		Short: "Run the tote agent (serves images from local containerd)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAgent(containerdSocket, grpcPort, metricsAddr)
+			if err := config.ValidateTLSFlags(tlsCert, tlsKey, tlsCA); err != nil {
+				return err
+			}
+			return runAgent(containerdSocket, grpcPort, metricsAddr, tlsCert, tlsKey, tlsCA)
 		},
 	}
 
 	cmd.Flags().StringVar(&containerdSocket, "containerd-socket", config.DefaultContainerdSocket, "path to containerd socket")
 	cmd.Flags().IntVar(&grpcPort, "grpc-port", config.DefaultAgentGRPCPort, "gRPC listen port")
 	cmd.Flags().StringVar(&metricsAddr, "metrics-addr", ":8081", "address for the metrics endpoint")
+	cmd.Flags().StringVar(&tlsCert, "tls-cert", "", "path to TLS certificate file (enables mTLS when all three TLS flags are set)")
+	cmd.Flags().StringVar(&tlsKey, "tls-key", "", "path to TLS private key file")
+	cmd.Flags().StringVar(&tlsCA, "tls-ca", "", "path to CA certificate file")
 
 	return cmd
 }
 
-func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool) error {
+func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool, tlsCert, tlsKey, tlsCA string) error {
 	ctrl.SetLogger(zap.New())
 
 	scheme := runtime.NewScheme()
@@ -162,14 +181,26 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 	if agentNamespace != "" {
 		sessions := session.NewStore()
 		resolver := transfer.NewResolver(mgr.GetClient(), agentNamespace, agentGRPCPort)
+
+		// Load mTLS client credentials for agent communication.
+		if config.TLSEnabled(tlsCert, tlsKey, tlsCA) {
+			clientCreds, err := tlsutil.ClientCredentials(tlsCert, tlsKey, tlsCA)
+			if err != nil {
+				return fmt.Errorf("loading TLS credentials: %w", err)
+			}
+			resolver.TransportCreds = clientCreds
+		}
+
 		reconciler.AgentResolver = resolver
-		reconciler.Orchestrator = transfer.NewOrchestrator(
+		orch := transfer.NewOrchestrator(
 			sessions, resolver, emitter, m, mgr.GetClient(),
 			maxConcurrentSalvages, sessionTTL, maxImageSize,
 		)
+		orch.TransportCreds = resolver.TransportCreds
 		if backupRegistry != "" {
-			reconciler.Orchestrator.SetBackupRegistry(backupRegistry, backupRegistrySecret, agentNamespace, backupRegistryInsecure)
+			orch.SetBackupRegistry(backupRegistry, backupRegistrySecret, agentNamespace, backupRegistryInsecure)
 		}
+		reconciler.Orchestrator = orch
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
@@ -179,7 +210,7 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 	return mgr.Start(ctrl.SetupSignalHandler())
 }
 
-func runAgent(containerdSocket string, grpcPort int, metricsAddr string) error {
+func runAgent(containerdSocket string, grpcPort int, metricsAddr, tlsCert, tlsKey, tlsCA string) error {
 	ctrl.SetLogger(zap.New())
 	logger := ctrl.Log.WithName("agent")
 
@@ -196,6 +227,20 @@ func runAgent(containerdSocket string, grpcPort int, metricsAddr string) error {
 
 	sessions := session.NewStore()
 	srv := agent.NewServer(store, sessions, grpcPort)
+
+	if config.TLSEnabled(tlsCert, tlsKey, tlsCA) {
+		serverCreds, err := tlsutil.ServerCredentials(tlsCert, tlsKey, tlsCA)
+		if err != nil {
+			return fmt.Errorf("loading server TLS credentials: %w", err)
+		}
+		clientCreds, err := tlsutil.ClientCredentials(tlsCert, tlsKey, tlsCA)
+		if err != nil {
+			return fmt.Errorf("loading client TLS credentials: %w", err)
+		}
+		srv.ServerCreds = serverCreds
+		srv.ClientCreds = clientCreds
+		logger.Info("mTLS enabled")
+	}
 
 	logger.Info("starting agent", "grpc-port", grpcPort, "containerd-socket", containerdSocket, "metrics-addr", metricsAddr)
 	return srv.Start(ctrl.SetupSignalHandler())

@@ -32,6 +32,11 @@ spec:
             - --containerd-socket={{ .Values.agent.containerdSocket }}
             - --grpc-port={{ .Values.agent.grpcPort }}
             - --metrics-addr={{ .Values.agent.metricsAddr }}
+            {{- if .Values.tls.enabled }}
+            - --tls-cert=/etc/tote/tls/tls.crt
+            - --tls-key=/etc/tote/tls/tls.key
+            - --tls-ca=/etc/tote/tls/ca.crt
+            {{- end }}
           ports:
             - name: grpc
               containerPort: {{ .Values.agent.grpcPort }}
@@ -39,6 +44,11 @@ spec:
           volumeMounts:
             - name: containerd-socket
               mountPath: {{ .Values.agent.containerdSocket }}
+            {{- if .Values.tls.enabled }}
+            - name: tls-certs
+              mountPath: /etc/tote/tls
+              readOnly: true
+            {{- end }}
           securityContext:
             runAsUser: 0
             readOnlyRootFilesystem: true
@@ -53,6 +63,11 @@ spec:
           hostPath:
             path: {{ .Values.agent.containerdSocket }}
             type: Socket
+        {{- if .Values.tls.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: {{ .Values.tls.secretName }}
+        {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
