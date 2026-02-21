@@ -87,7 +87,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 
 			// Fallback: query agents directly via containerd (bypasses kubelet 50-image limit).
 			if digest == "" && r.AgentResolver != nil {
-				logger.Info("querying agents for tag resolution", "container", f.ContainerName, "image", f.Image)
+				logger.V(1).Info("querying agents for tag resolution", "container", f.ContainerName, "image", f.Image)
 				var sourceNode string
 				digest, sourceNode, err = r.AgentResolver.ResolveTagViaAgents(ctx, f.Image)
 				if err != nil {
@@ -95,20 +95,20 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 				}
 				if digest != "" && sourceNode != "" {
 					nodes = []string{sourceNode}
-					logger.Info("resolved tag via agent", "container", f.ContainerName, "image", f.Image, "digest", digest, "node", sourceNode)
+					logger.V(1).Info("resolved tag via agent", "container", f.ContainerName, "image", f.Image, "digest", digest, "node", sourceNode)
 				} else if err == nil {
-					logger.Info("agents returned no digest", "container", f.ContainerName, "image", f.Image)
+					logger.V(1).Info("agents returned no digest", "container", f.ContainerName, "image", f.Image)
 				}
 			}
 
 			if digest == "" {
-				logger.Info("image not actionable (tag-only, no cached digest found)", "container", f.ContainerName, "image", f.Image)
+				logger.V(1).Info("image not actionable (tag-only, no cached digest found)", "container", f.ContainerName, "image", f.Image)
 				r.Metrics.RecordNotActionable()
 				r.Emitter.EmitNotActionable(&pod, f.Image)
 				continue
 			}
 			if len(nodes) == 0 {
-				logger.Info("resolved tag to digest via node cache", "container", f.ContainerName, "image", f.Image, "digest", digest)
+				logger.V(1).Info("resolved tag to digest via node cache", "container", f.ContainerName, "image", f.Image, "digest", digest)
 			}
 		}
 
@@ -130,7 +130,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 					}
 				}
 				if sourceNode == "" {
-					logger.Info("image already on target node, skipping salvage", "digest", digest, "node", pod.Spec.NodeName)
+					logger.V(1).Info("image already on target node, skipping salvage", "digest", digest, "node", pod.Spec.NodeName)
 					continue
 				}
 				if err := r.Orchestrator.Salvage(ctx, &pod, digest, sourceNode); err != nil {
