@@ -1,0 +1,51 @@
+tote context snapshot — 2026-02-21
+
+## Current state
+
+Version: 0.4.0 (unreleased, all commits on main)
+Last tag: v0.3.0 (at WO-4 commit)
+All v0.3 roadmap items complete. v1.0 items in progress.
+
+## Completed work orders
+
+WO-1:  Pod restart after salvage (fast recovery)
+WO-2:  Demote debug logging to V(1)
+WO-3:  Max image size guard (--max-image-size, default 2 GiB)
+WO-4:  README update for v0.2 architecture
+WO-5:  Backup registry push (--backup-registry, go-containerregistry)
+WO-6:  Grafana dashboard (charts/tote/dashboards/tote.json + ConfigMap)
+WO-7:  CI optimization (4 parallel jobs, .golangci-full.yml for CI)
+WO-8:  mTLS for gRPC (internal/tlsutil, --tls-cert/key/ca, Helm tls.enabled)
+WO-9:  Leader election (controller-runtime LeaderElection)
+WO-11: CreateContainerError detection (corrupt image cleanup via RemoveImage RPC)
+
+## Remaining work orders
+
+WO-10: CRDs for salvage tracking (SalvageRecord CRD, replace pod annotations)
+
+## Architecture (13 internal packages)
+
+version, config, detector, resolver, inventory, events, metrics,
+controller, agent, session, transfer, registry, tlsutil
+
+## Key decisions
+
+- containerd v2 client API (github.com/containerd/containerd/v2/client)
+- events.EventRecorder (not deprecated record.EventRecorder)
+- mgr.GetEventRecorder("tote") (not GetEventRecorderFor)
+- ExportFunc type avoids circular import between registry and agent
+- Fixed ServerName "tote" for mTLS (avoids IP SANs per pod)
+- golangci-lint v2 config format; local binary is v1 (CI uses v2)
+- Pre-commit hook blocks Co-Authored-By lines
+
+## Open issues
+
+- Local golangci-lint is v1, config is v2 format. make lint fails locally.
+  CI works fine. Could install v2 locally or keep as-is.
+- v0.3.0 tag was premature (only covered WO-1-4). Next release should be v0.4.0.
+- Chart version bumped to 0.4.0 but no git tag yet.
+
+## Next steps
+
+1. Commit changelog/version updates, push, tag v0.4.0
+2. Implement WO-10: SalvageRecord CRD
