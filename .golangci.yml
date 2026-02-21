@@ -1,0 +1,33 @@
+version: "2"
+
+# golangci-lint v2 configuration
+#
+# Problem: any linter needing type info triggers golang.org/x/tools/go/packages.Load
+# which type-checks all 297 transitive deps (containerd, gRPC, k8s). Takes 50+ min.
+#
+# Solution: only enable linters that work on syntax/AST (no type-checking).
+# Use `go vet` directly for vet checks — it uses a faster loader and runs instantly.
+# `make lint` runs both `go vet` and `golangci-lint`.
+
+run:
+  timeout: 2m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - ineffassign   # unused assignments [fast, no type info]
+    # All other default linters (govet, errcheck, staticcheck, gosimple, unused)
+    # require type-checking and are impractically slow with this dependency tree.
+    # govet: run via `go vet ./...` directly (instant vs 50+ min via golangci-lint).
+    # errcheck/staticcheck/gosimple/unused: CI-only (see WO-7).
+  exclusions:
+    paths:
+      - ".*\\.pb\\.go$"
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    paths:
+      - ".*\\.pb\\.go$"
