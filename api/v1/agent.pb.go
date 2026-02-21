@@ -75,6 +75,7 @@ func (x *PrepareExportRequest) GetDigest() string {
 
 type PrepareExportResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	SizeBytes     int64                  `protobuf:"varint,1,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -107,6 +108,13 @@ func (x *PrepareExportResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use PrepareExportResponse.ProtoReflect.Descriptor instead.
 func (*PrepareExportResponse) Descriptor() ([]byte, []int) {
 	return file_api_v1_agent_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PrepareExportResponse) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
 }
 
 type ExportImageRequest struct {
@@ -484,8 +492,10 @@ const file_api_v1_agent_proto_rawDesc = "" +
 	"\x12api/v1/agent.proto\x12\atote.v1\"S\n" +
 	"\x14PrepareExportRequest\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12\x16\n" +
-	"\x06digest\x18\x02 \x01(\tR\x06digest\"\x17\n" +
-	"\x15PrepareExportResponse\"9\n" +
+	"\x06digest\x18\x02 \x01(\tR\x06digest\"6\n" +
+	"\x15PrepareExportResponse\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x01 \x01(\x03R\tsizeBytes\"9\n" +
 	"\x12ExportImageRequest\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\"\x1f\n" +
 	"\tDataChunk\x12\x12\n" +

@@ -55,6 +55,17 @@ func (f *FakeImageStore) Has(_ context.Context, digest string) (bool, error) {
 	return ok, nil
 }
 
+// Size returns the byte length of the stored data for the digest.
+func (f *FakeImageStore) Size(_ context.Context, digest string) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	data, ok := f.images[digest]
+	if !ok {
+		return 0, fmt.Errorf("image %s not found", digest)
+	}
+	return int64(len(data)), nil
+}
+
 // ResolveTag returns the digest for an image reference if mapped.
 func (f *FakeImageStore) ResolveTag(_ context.Context, imageRef string) (string, error) {
 	f.mu.Lock()
@@ -98,6 +109,7 @@ type FailingImageStore struct {
 
 func (f *FailingImageStore) List(_ context.Context) ([]string, error)               { return nil, f.Err }
 func (f *FailingImageStore) Has(_ context.Context, _ string) (bool, error)          { return false, f.Err }
+func (f *FailingImageStore) Size(_ context.Context, _ string) (int64, error)        { return 0, f.Err }
 func (f *FailingImageStore) ResolveTag(_ context.Context, _ string) (string, error) { return "", f.Err }
 func (f *FailingImageStore) Export(_ context.Context, _ string, _ io.Writer) error  { return f.Err }
 func (f *FailingImageStore) Import(_ context.Context, _ io.Reader) (string, error)  { return "", f.Err }

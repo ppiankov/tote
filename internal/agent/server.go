@@ -65,11 +65,16 @@ func (s *Server) PrepareExport(ctx context.Context, req *v1.PrepareExportRequest
 		return nil, fmt.Errorf("image %s not found locally", req.Digest)
 	}
 
+	sizeBytes, err := s.Store.Size(ctx, req.Digest)
+	if err != nil {
+		return nil, fmt.Errorf("getting image size: %w", err)
+	}
+
 	// Register the session locally so ExportImage can look up the digest.
 	// The token was created by the controller's orchestrator.
 	s.Sessions.Register(req.SessionToken, req.Digest, 5*time.Minute)
 
-	return &v1.PrepareExportResponse{}, nil
+	return &v1.PrepareExportResponse{SizeBytes: sizeBytes}, nil
 }
 
 // ExportImage streams the image tar for the session's digest.

@@ -26,6 +26,9 @@ const (
 
 	// DefaultSessionTTL is the default session lifetime.
 	DefaultSessionTTL = 5 * time.Minute
+
+	// DefaultMaxImageSize is the default max image size for salvage (2 GiB).
+	DefaultMaxImageSize int64 = 2 * 1024 * 1024 * 1024
 )
 
 // DefaultDeniedNamespaces are always excluded regardless of annotations.
@@ -54,6 +57,9 @@ type Config struct {
 
 	// AgentGRPCPort is the gRPC port for agents.
 	AgentGRPCPort int
+
+	// MaxImageSize is the max image size in bytes for salvage. 0 means no limit.
+	MaxImageSize int64
 }
 
 // AgentConfig holds agent-specific configuration.
@@ -75,6 +81,7 @@ func New() Config {
 		MaxConcurrentSalvages: DefaultMaxConcurrentSalvages,
 		SessionTTL:            DefaultSessionTTL,
 		AgentGRPCPort:         DefaultAgentGRPCPort,
+		MaxImageSize:          DefaultMaxImageSize,
 	}
 }
 

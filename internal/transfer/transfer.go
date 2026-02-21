@@ -21,13 +21,14 @@ import (
 
 // Orchestrator coordinates image salvage between agent nodes.
 type Orchestrator struct {
-	Sessions   *session.Store
-	Resolver   *Resolver
-	Emitter    *events.Emitter
-	Metrics    *metrics.Counters
-	Client     client.Client
-	Semaphore  chan struct{}
-	SessionTTL time.Duration
+	Sessions     *session.Store
+	Resolver     *Resolver
+	Emitter      *events.Emitter
+	Metrics      *metrics.Counters
+	Client       client.Client
+	Semaphore    chan struct{}
+	SessionTTL   time.Duration
+	MaxImageSize int64
 }
 
 // NewOrchestrator creates an Orchestrator with the given dependencies.
@@ -39,15 +40,17 @@ func NewOrchestrator(
 	c client.Client,
 	maxConcurrent int,
 	sessionTTL time.Duration,
+	maxImageSize int64,
 ) *Orchestrator {
 	return &Orchestrator{
-		Sessions:   sessions,
-		Resolver:   resolver,
-		Emitter:    emitter,
-		Metrics:    m,
-		Client:     c,
-		Semaphore:  make(chan struct{}, maxConcurrent),
-		SessionTTL: sessionTTL,
+		Sessions:     sessions,
+		Resolver:     resolver,
+		Emitter:      emitter,
+		Metrics:      m,
+		Client:       c,
+		Semaphore:    make(chan struct{}, maxConcurrent),
+		SessionTTL:   sessionTTL,
+		MaxImageSize: maxImageSize,
 	}
 }
 
@@ -85,9 +88,17 @@ func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, sou
 	defer o.Sessions.Delete(sess.Token)
 
 	// PrepareExport on source agent
-	if err := o.prepareExport(ctx, sourceEndpoint, sess.Token, digest); err != nil {
+	sizeBytes, err := o.prepareExport(ctx, sourceEndpoint, sess.Token, digest)
+	if err != nil {
 		o.fail(pod, digest, fmt.Sprintf("prepare export: %v", err))
 		return err
+	}
+
+	// Check image size limit
+	if o.MaxImageSize > 0 && sizeBytes > o.MaxImageSize {
+		reason := fmt.Sprintf("image %s is %d bytes, exceeds limit %d bytes", digest, sizeBytes, o.MaxImageSize)
+		o.fail(pod, digest, reason)
+		return fmt.Errorf("image size exceeded: %s", reason)
 	}
 
 	// ImportFrom on target agent
@@ -123,19 +134,22 @@ func (o *Orchestrator) fail(pod *corev1.Pod, digest, reason string) {
 	o.Emitter.EmitSalvageFailed(pod, digest, reason)
 }
 
-func (o *Orchestrator) prepareExport(ctx context.Context, endpoint, token, digest string) error {
+func (o *Orchestrator) prepareExport(ctx context.Context, endpoint, token, digest string) (int64, error) {
 	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("connecting to source: %w", err)
+		return 0, fmt.Errorf("connecting to source: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
 
 	client := v1.NewToteAgentClient(conn)
-	_, err = client.PrepareExport(ctx, &v1.PrepareExportRequest{
+	resp, err := client.PrepareExport(ctx, &v1.PrepareExportRequest{
 		SessionToken: token,
 		Digest:       digest,
 	})
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return resp.SizeBytes, nil
 }
 
 func (o *Orchestrator) importFrom(ctx context.Context, endpoint, token, digest, sourceEndpoint string) error {

@@ -18,6 +18,7 @@ import (
 type ImageStore interface {
 	List(ctx context.Context) ([]string, error)
 	Has(ctx context.Context, digest string) (bool, error)
+	Size(ctx context.Context, digest string) (int64, error)
 	ResolveTag(ctx context.Context, imageRef string) (string, error)
 	Export(ctx context.Context, digest string, w io.Writer) error
 	Import(ctx context.Context, r io.Reader) (string, error)
@@ -94,6 +95,19 @@ func (s *ContainerdStore) Has(ctx context.Context, digest string) (bool, error) 
 		return false, err
 	}
 	return len(imgs) > 0, nil
+}
+
+// Size returns the total content size of the image in bytes.
+func (s *ContainerdStore) Size(ctx context.Context, digest string) (int64, error) {
+	imgs, err := s.client.ImageService().List(ctx, "target.digest=="+digest)
+	if err != nil {
+		return 0, err
+	}
+	if len(imgs) == 0 {
+		return 0, fmt.Errorf("image %s: %w", digest, errdefs.ErrNotFound)
+	}
+	img := containerd.NewImage(s.client, imgs[0])
+	return img.Size(ctx)
 }
 
 // Export writes the image with the given digest as a tar archive to w.

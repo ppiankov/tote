@@ -23,7 +23,9 @@ message PrepareExportRequest {
   string session_token = 1;
   string digest = 2;
 }
-message PrepareExportResponse {}
+message PrepareExportResponse {
+  int64 size_bytes = 1;
+}
 
 message ExportImageRequest {
   string session_token = 1;
