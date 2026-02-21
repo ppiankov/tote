@@ -19,8 +19,10 @@ README still describes v0.1 (detection only). Update: What tote is/is NOT, archi
 ### WO-5: Registry push ✅
 After successful salvage, optionally push the image to a configurable backup registry via `--backup-registry`. Controller reads credentials from a dockerconfigjson Secret (`--backup-registry-secret`), passes them to the source agent via gRPC. Agent uses `go-containerregistry` to export from containerd and push. Push is non-fatal — failure logged + event + metric. New package: `internal/registry` (push, ref rewriting, credential extraction). Three new Prometheus counters: `tote_push_{attempts,successes,failures}_total`.
 
-### WO-6: Grafana dashboard
+### WO-6: Grafana dashboard ✅
 Ship `charts/tote/dashboards/tote.json` with panels: salvage rate, failure rate, detected vs salvageable ratio, not-actionable count. Add a ConfigMap in the Helm chart for Grafana sidecar auto-discovery.
+
+**Implemented**: Dashboard JSON with 3 rows (Detection, Salvage, Backup registry push), stat panels for all 10 counters, time-series rate panels, pie chart for detected/salvageable/not-actionable ratio, gauge for salvage failure rate. ConfigMap with `grafana_dashboard: "1"` label for sidecar auto-discovery. Toggled via `dashboard.enabled` in values.yaml.
 
 ### WO-7: CI optimization
 **Root cause found**: golangci-lint's package loader (`golang.org/x/tools/go/packages.Load`) type-checks all 297 transitive dependencies (containerd, gRPC, k8s) for ANY linter needing type info — even `govet`. This takes 50+ min locally. `go vet` runs instantly because it uses a more efficient loader.
