@@ -121,7 +121,19 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 				if pod.Annotations[config.AnnotationSalvagedDigest] == digest {
 					continue
 				}
-				if err := r.Orchestrator.Salvage(ctx, &pod, digest, nodes[0]); err != nil {
+				// Pick a source node that isn't the target node.
+				sourceNode := ""
+				for _, n := range nodes {
+					if n != pod.Spec.NodeName {
+						sourceNode = n
+						break
+					}
+				}
+				if sourceNode == "" {
+					logger.Info("image already on target node, skipping salvage", "digest", digest, "node", pod.Spec.NodeName)
+					continue
+				}
+				if err := r.Orchestrator.Salvage(ctx, &pod, digest, sourceNode); err != nil {
 					logger.Error(err, "salvage failed", "digest", digest)
 				}
 			}

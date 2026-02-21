@@ -228,15 +228,17 @@ This means tote needs only **read access** to work. It never touches your nodes,
 
 ## Known limitations
 
-1. **kubelet image limit**: The kubelet reports at most 50 images per node by default (`--node-status-max-images=50`). Nodes with many images may not report all cached images. tote cannot find images beyond this limit.
+1. **kubelet image limit**: The kubelet reports at most 50 images per node by default (`--node-status-max-images=50`). Nodes with many images may not report all cached images. tote agents bypass this limit by querying containerd directly.
 
-2. **Tag-only images are not actionable**: If your image reference uses a tag (`:latest`, `:v1.2.3`) instead of a digest (`@sha256:...`), tote cannot determine whether two nodes have the same image content. These are reported as "not actionable."
+2. **Tag-only images are not actionable**: If your image reference uses a tag (`:latest`, `:v1.2.3`) instead of a digest (`@sha256:...`), tote cannot determine whether two nodes have the same image content. These are reported as "not actionable." When agents are deployed, tote can resolve tags via containerd as a fallback.
 
-3. **No owner workload inheritance**: The `tote.dev/auto-salvage` annotation must be set directly on the Pod (or pod template). tote does not check the owning Deployment or StatefulSet annotations.
+3. **`imagePullPolicy: Always` blocks salvage**: If a pod sets `imagePullPolicy: Always`, kubelet will always contact the registry to verify the image — even if the image exists locally. When the registry is unreachable, the pod will stay in `ImagePullBackOff` regardless of whether tote has salvaged the image to the local node. Salvage only works with `imagePullPolicy: IfNotPresent` (the default for tagged images). Pods using `:latest` (which defaults to `Always`) cannot be salvaged.
 
-4. **No leader election**: Running multiple replicas will emit duplicate events. Safe but redundant. Leader election will be added when remediation actions are introduced.
+4. **Agent requires root access**: The tote agent DaemonSet runs as root (`runAsUser: 0`) to access the containerd socket. This is required for image export/import operations. Environments with strict security policies (e.g., financial institutions) should evaluate this requirement. The controller does not require root.
 
-5. **Detection only**: v0.1 detects and reports. It does not export images, push to registries, or modify workloads. That is the v0.2 roadmap.
+5. **No owner workload inheritance**: The `tote.dev/auto-salvage` annotation must be set directly on the Pod (or pod template). tote does not check the owning Deployment or StatefulSet annotations.
+
+6. **No leader election**: Running multiple replicas will emit duplicate events. Safe but redundant.
 
 ## Roadmap
 
