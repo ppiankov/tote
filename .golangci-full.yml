@@ -1,0 +1,32 @@
+version: "2"
+
+# Full linter config for CI only.
+#
+# Enables type-checking linters (errcheck, staticcheck, unused) that require
+# golang.org/x/tools/go/packages.Load. This type-checks all 297 transitive deps
+# and takes 10+ minutes without cache. CI caches the Go build cache, making
+# subsequent runs fast (~30s).
+#
+# For local development, use .golangci.yml (fast, no type info).
+
+run:
+  timeout: 15m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - ineffassign   # unused assignments
+    - errcheck      # unchecked errors [requires type info]
+    - staticcheck   # go vet++ [requires type info]
+    - unused        # unused code [requires type info]
+  exclusions:
+    paths:
+      - ".*\\.pb\\.go$"
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    paths:
+      - ".*\\.pb\\.go$"

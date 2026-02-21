@@ -20,7 +20,7 @@ linters:
     # All other default linters (govet, errcheck, staticcheck, gosimple, unused)
     # require type-checking and are impractically slow with this dependency tree.
     # govet: run via `go vet ./...` directly (instant vs 50+ min via golangci-lint).
-    # errcheck/staticcheck/gosimple/unused: CI-only (see WO-7).
+    # errcheck/staticcheck/unused: CI-only via .golangci-full.yml.
   exclusions:
     paths:
       - ".*\\.pb\\.go$"

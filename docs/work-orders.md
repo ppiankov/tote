@@ -24,12 +24,12 @@ Ship `charts/tote/dashboards/tote.json` with panels: salvage rate, failure rate,
 
 **Implemented**: Dashboard JSON with 3 rows (Detection, Salvage, Backup registry push), stat panels for all 10 counters, time-series rate panels, pie chart for detected/salvageable/not-actionable ratio, gauge for salvage failure rate. ConfigMap with `grafana_dashboard: "1"` label for sidecar auto-discovery. Toggled via `dashboard.enabled` in values.yaml.
 
-### WO-7: CI optimization
+### WO-7: CI optimization ✅
 **Root cause found**: golangci-lint's package loader (`golang.org/x/tools/go/packages.Load`) type-checks all 297 transitive dependencies (containerd, gRPC, k8s) for ANY linter needing type info — even `govet`. This takes 50+ min locally. `go vet` runs instantly because it uses a more efficient loader.
 
 **Fixed locally**: `.golangci.yml` now only enables `ineffassign` (no type info) + `gofmt` (formatter). `make lint` runs `go vet` first, then golangci-lint. Total: ~2 seconds.
 
-**Remaining**: CI should run the full linter set (staticcheck, errcheck, unused) in a dedicated job with proper caching. Split CI into parallel jobs (test, lint-fast, lint-full, build).
+**Implemented**: CI split into 4 parallel jobs: test (Go matrix), lint-fast (go vet + golangci-lint with fast config), lint-full (golangci-lint with `.golangci-full.yml` — errcheck, staticcheck, unused + caching), build. Removed dead code flagged by staticcheck.
 
 ## v1.0 — Production hardening
 
