@@ -13,7 +13,8 @@ test:
 	go test $(GOFLAGS) ./...
 
 lint:
-	golangci-lint run --timeout=5m
+	go vet ./...
+	golangci-lint run
 
 fmt:
 	gofmt -w .
