@@ -3,13 +3,16 @@ package transfer
 import (
 	"context"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sevents "k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"google.golang.org/grpc"
@@ -175,4 +178,96 @@ func TestOrchestratorSemaphore(t *testing.T) {
 	o.Semaphore <- struct{}{}
 	<-o.Semaphore
 	<-o.Semaphore
+}
+
+func ownedPod() *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "owned-pod",
+			Namespace: "default",
+			Annotations: map[string]string{
+				config.AnnotationPodAutoSalvage: "true",
+			},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "apps/v1",
+				Kind:       "ReplicaSet",
+				Name:       "my-rs",
+				UID:        "uid-1",
+			}},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-target",
+		},
+	}
+}
+
+// salvageOrchestrator sets up a full orchestrator with a running agent server
+// for end-to-end salvage tests. Both source and target resolve to the same
+// gRPC server (shared fake store).
+func salvageOrchestrator(t *testing.T, pod *corev1.Pod) (*Orchestrator, *k8sevents.FakeRecorder, client.Client) {
+	t.Helper()
+
+	store := agent.NewFakeImageStore()
+	store.AddImage("sha256:aaa", []byte("image-tar-data"))
+	sessions := session.NewStore()
+
+	addr, cleanup := startAgentServer(t, store, sessions)
+	t.Cleanup(cleanup)
+
+	host, portStr, _ := net.SplitHostPort(addr)
+	port, _ := strconv.Atoi(portStr)
+
+	scheme := newScheme()
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(
+		pod,
+		agentPod("tote-system", "agent-source", "node-source", host),
+		agentPod("tote-system", "agent-target", "node-target", host),
+	).Build()
+
+	rec := k8sevents.NewFakeRecorder(10)
+	reg := prometheus.NewRegistry()
+	resolver := NewResolver(cl, "tote-system", port)
+	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute)
+
+	return o, rec, cl
+}
+
+func TestOrchestratorSalvage_DeletesPodWithOwner(t *testing.T) {
+	pod := ownedPod()
+	o, _, cl := salvageOrchestrator(t, pod)
+
+	err := o.Salvage(context.Background(), pod, "sha256:aaa", "node-source")
+	if err != nil {
+		t.Fatalf("salvage failed: %v", err)
+	}
+
+	// Pod with owner references should be deleted for fast recovery
+	var got corev1.Pod
+	err = cl.Get(context.Background(), client.ObjectKeyFromObject(pod), &got)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected pod to be deleted, got err: %v", err)
+	}
+}
+
+func TestOrchestratorSalvage_AnnotatesStandalonePod(t *testing.T) {
+	pod := targetPod() // no owner references
+	o, _, cl := salvageOrchestrator(t, pod)
+
+	err := o.Salvage(context.Background(), pod, "sha256:aaa", "node-source")
+	if err != nil {
+		t.Fatalf("salvage failed: %v", err)
+	}
+
+	// Standalone pod should NOT be deleted, but should get salvage annotations
+	var got corev1.Pod
+	err = cl.Get(context.Background(), client.ObjectKeyFromObject(pod), &got)
+	if err != nil {
+		t.Fatalf("expected pod to still exist: %v", err)
+	}
+	if got.Annotations[config.AnnotationSalvagedDigest] != "sha256:aaa" {
+		t.Errorf("expected salvaged-digest annotation, got annotations: %v", got.Annotations)
+	}
+	if got.Annotations[config.AnnotationImportedAt] == "" {
+		t.Error("expected imported-at annotation to be set")
+	}
 }
