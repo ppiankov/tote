@@ -74,7 +74,7 @@ func TestOrchestratorSalvage_RateLimited(t *testing.T) {
 	o.Semaphore <- struct{}{}
 
 	pod := targetPod()
-	err := o.Salvage(context.Background(), pod, "sha256:abc", "node-source")
+	err := o.Salvage(context.Background(), pod, "sha256:abc", "registry.example.com/app:v1", "node-source")
 	if err == nil {
 		t.Fatal("expected rate limit error")
 	}
@@ -94,7 +94,7 @@ func TestOrchestratorSalvage_NoSourceAgent(t *testing.T) {
 
 	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute, 0)
 
-	err := o.Salvage(context.Background(), pod, "sha256:abc", "node-source")
+	err := o.Salvage(context.Background(), pod, "sha256:abc", "registry.example.com/app:v1", "node-source")
 	if err == nil {
 		t.Fatal("expected error when no agent pod exists")
 	}
@@ -172,7 +172,7 @@ func TestOrchestratorSemaphore(t *testing.T) {
 	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute, 0)
 
 	// Salvage will fail (no agent pods), but semaphore should be released
-	_ = o.Salvage(context.Background(), pod, "sha256:abc", "node-source")
+	_ = o.Salvage(context.Background(), pod, "sha256:abc", "registry.example.com/app:v1", "node-source")
 
 	// Verify semaphore was released by acquiring both slots
 	o.Semaphore <- struct{}{}
@@ -237,7 +237,7 @@ func TestOrchestratorSalvage_DeletesPodWithOwner(t *testing.T) {
 	pod := ownedPod()
 	o, _, cl := salvageOrchestrator(t, pod)
 
-	err := o.Salvage(context.Background(), pod, "sha256:aaa", "node-source")
+	err := o.Salvage(context.Background(), pod, "sha256:aaa", "registry.example.com/app:v1", "node-source")
 	if err != nil {
 		t.Fatalf("salvage failed: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestOrchestratorSalvage_AnnotatesStandalonePod(t *testing.T) {
 	pod := targetPod() // no owner references
 	o, _, cl := salvageOrchestrator(t, pod)
 
-	err := o.Salvage(context.Background(), pod, "sha256:aaa", "node-source")
+	err := o.Salvage(context.Background(), pod, "sha256:aaa", "registry.example.com/app:v1", "node-source")
 	if err != nil {
 		t.Fatalf("salvage failed: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestOrchestratorSalvage_ImageSizeExceeded(t *testing.T) {
 	// Image data is 14 bytes ("image-tar-data"). Set limit to 10 bytes.
 	o.MaxImageSize = 10
 
-	err := o.Salvage(context.Background(), pod, "sha256:aaa", "node-source")
+	err := o.Salvage(context.Background(), pod, "sha256:aaa", "registry.example.com/app:v1", "node-source")
 	if err == nil {
 		t.Fatal("expected error for oversized image")
 	}
@@ -296,7 +296,7 @@ func TestOrchestratorSalvage_ImageSizeWithinLimit(t *testing.T) {
 	// Image data is 14 bytes. Set limit to 100 bytes — should pass.
 	o.MaxImageSize = 100
 
-	err := o.Salvage(context.Background(), pod, "sha256:aaa", "node-source")
+	err := o.Salvage(context.Background(), pod, "sha256:aaa", "registry.example.com/app:v1", "node-source")
 	if err != nil {
 		t.Fatalf("salvage should succeed within size limit: %v", err)
 	}

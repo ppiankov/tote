@@ -40,6 +40,12 @@ controller:
   maxConcurrentSalvages: 2
   sessionTTL: "5m0s"
   agentGRPCPort: 9090
+  # Backup registry for pushing salvaged images. Empty = disabled.
+  backupRegistry: ""
+  # Name of dockerconfigjson Secret with backup registry credentials.
+  backupRegistrySecret: ""
+  # Allow HTTP connections to backup registry.
+  backupRegistryInsecure: false
 
 # Agent DaemonSet configuration.
 agent:

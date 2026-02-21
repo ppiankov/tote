@@ -23,10 +23,17 @@ const (
 	// ReasonCorruptImage indicates the image record exists but content blobs are missing.
 	ReasonCorruptImage = "ImageCorrupt"
 
+	// ReasonPushed indicates the image was pushed to a backup registry.
+	ReasonPushed = "ImagePushed"
+
+	// ReasonPushFailed indicates the registry push failed.
+	ReasonPushFailed = "ImagePushFailed"
+
 	actionDetected  = "Detected"
 	actionSalvaged  = "Salvaged"
 	actionSalvaging = "Salvaging"
 	actionCleaning  = "Cleaning"
+	actionPushing   = "Pushing"
 )
 
 // Emitter emits Kubernetes events for tote detections.
@@ -85,5 +92,23 @@ func (e *Emitter) EmitCorruptImage(pod *corev1.Pod, image, nodeName string) {
 		pod, nil, corev1.EventTypeWarning, ReasonCorruptImage, actionCleaning,
 		"Corrupt image record for %s on node %s: content blobs missing. Removing stale record.",
 		image, nodeName,
+	)
+}
+
+// EmitPushed emits a Normal event indicating the image was pushed to a backup registry.
+func (e *Emitter) EmitPushed(pod *corev1.Pod, digest, targetRef, sourceNode string) {
+	e.Recorder.Eventf(
+		pod, nil, corev1.EventTypeNormal, ReasonPushed, actionPushing,
+		"Image %s pushed to backup registry %s from node %s.",
+		digest, targetRef, sourceNode,
+	)
+}
+
+// EmitPushFailed emits a Warning event indicating the registry push failed.
+func (e *Emitter) EmitPushFailed(pod *corev1.Pod, digest, targetRef, reason string) {
+	e.Recorder.Eventf(
+		pod, nil, corev1.EventTypeWarning, ReasonPushFailed, actionPushing,
+		"Registry push failed for %s to %s: %s",
+		digest, targetRef, reason,
 	)
 }
