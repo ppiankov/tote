@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	v1alpha1 "github.com/ppiankov/tote/api/v1alpha1"
 	"github.com/ppiankov/tote/internal/config"
 	"github.com/ppiankov/tote/internal/detector"
 	"github.com/ppiankov/tote/internal/events"
@@ -140,7 +141,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 			r.Emitter.EmitSalvageable(&pod, f.Image, nodes)
 
 			if r.Orchestrator != nil && pod.Spec.NodeName != "" {
-				if pod.Annotations[config.AnnotationSalvagedDigest] == digest {
+				if hasSalvageRecord(ctx, r.Client, pod.Namespace, digest) {
 					continue
 				}
 				// Pick a source node that isn't the target node.
@@ -178,4 +179,19 @@ func namespaceOptedIn(ctx context.Context, c client.Reader, namespace string) bo
 		return false
 	}
 	return ns.Annotations[config.AnnotationNamespaceAllow] == "true"
+}
+
+// hasSalvageRecord checks whether a completed SalvageRecord exists for the
+// given digest in the namespace. Used as an idempotency guard.
+func hasSalvageRecord(ctx context.Context, c client.Reader, namespace, digest string) bool {
+	var list v1alpha1.SalvageRecordList
+	if err := c.List(ctx, &list, client.InNamespace(namespace)); err != nil {
+		return false
+	}
+	for i := range list.Items {
+		if list.Items[i].Spec.Digest == digest && list.Items[i].Status.Phase == "Completed" {
+			return true
+		}
+	}
+	return false
 }

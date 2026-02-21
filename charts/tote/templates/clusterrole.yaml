@@ -7,10 +7,14 @@ metadata:
     {{- include "tote.labels" . | nindent 4 }}
 rules:
   # Read pods and nodes to detect failures and find cached images.
-  # Patch pods for salvage annotations. Delete pods for fast recovery after salvage.
+  # Delete pods for fast recovery after salvage.
   - apiGroups: [""]
     resources: [pods]
-    verbs: [get, list, watch, patch, delete]
+    verbs: [get, list, watch, delete]
+  # SalvageRecords for persistent salvage tracking and idempotency.
+  - apiGroups: [tote.dev]
+    resources: [salvagerecords, salvagerecords/status]
+    verbs: [get, list, create, update, patch]
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]

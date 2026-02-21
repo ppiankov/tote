@@ -206,7 +206,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: [pods]
-    verbs: [get, list, watch, patch, delete]
+    verbs: [get, list, watch, delete]
   - apiGroups: [""]
     resources: [nodes, namespaces]
     verbs: [get, list, watch]
@@ -219,9 +219,12 @@ rules:
   - apiGroups: [""]
     resources: [secrets]
     verbs: [get]
+  - apiGroups: [tote.dev]
+    resources: [salvagerecords, salvagerecords/status]
+    verbs: [get, list, create, update, patch]
 ```
 
-Pod `patch` is for salvage annotations. Pod `delete` is for fast recovery after salvage (only pods with owner references). Secrets `get` is for reading backup registry credentials.
+Pod `delete` is for fast recovery after salvage (only pods with owner references). Secrets `get` is for reading backup registry credentials. SalvageRecords track salvage history and provide idempotency.
 
 ## Architecture
 
@@ -230,6 +233,8 @@ cmd/tote/main.go                  Cobra CLI: controller + agent subcommands
 internal/
   version/version.go              Build-time version via LDFLAGS
   config/config.go                Kill switch, denied namespaces, annotation constants
+api/v1alpha1/                     SalvageRecord CRD types (tote.dev/v1alpha1)
+config/crd/                       Generated CRD manifests
   detector/detector.go            Extract ImagePullBackOff/ErrImagePull from Pod status
   resolver/resolver.go            Parse image refs, classify digest vs tag-only
   inventory/inventory.go          Find nodes with a digest via Node.Status.Images
@@ -272,15 +277,16 @@ Pod event received
       ├─ emit Salvageable event + metric
       │
       └─ Orchestrator configured?
-          ├─ Already salvaged (annotation)? → skip
+          ├─ SalvageRecord exists for digest? → skip (idempotency)
           ├─ Source == target node? → skip
           ├─ Image too large? → emit failure event, skip
           │
           └─ Salvage:
               ├─ PrepareExport on source agent (verify + get size)
               ├─ ImportFrom on target agent (stream image)
+              ├─ Create SalvageRecord CR (persistent history)
               ├─ PushImage to backup registry (optional, non-fatal)
-              ├─ Delete pod (owned) or annotate (standalone)
+              ├─ Delete pod (owned) for fast recovery
               └─ Pod recreated by owning controller → starts immediately
 ```
 
@@ -322,7 +328,7 @@ tote uses two methods to find cached images:
 - [x] DaemonSet node agent for image export/import via containerd
 - [x] Node-to-node image transfer via gRPC streaming
 - [x] Tag resolution via agents (bypasses kubelet 50-image limit)
-- [x] One-shot per digest (annotation guard)
+- [x] One-shot per digest (SalvageRecord guard)
 - [x] Rate limiting (max concurrent salvages)
 - [x] Max image size guard
 - [x] Pod restart after salvage (fast recovery)
@@ -338,7 +344,7 @@ tote uses two methods to find cached images:
 
 ### Future
 
-- [ ] CRD for salvage tracking (`SalvageRecord`)
+- [x] CRD for salvage tracking (`SalvageRecord`)
 - [ ] Owner workload annotation inheritance
 - [ ] Webhook/Slack notifications
 

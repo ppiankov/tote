@@ -1,0 +1,100 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: salvagerecords.
+spec:
+  group: ""
+  names:
+    kind: SalvageRecord
+    listKind: SalvageRecordList
+    plural: salvagerecords
+    singular: salvagerecord
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.digest
+      name: Digest
+      type: string
+    - jsonPath: .spec.sourceNode
+      name: Source
+      type: string
+    - jsonPath: .spec.targetNode
+      name: Target
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: ""
+    schema:
+      openAPIV3Schema:
+        description: SalvageRecord tracks a single image salvage operation.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: SalvageRecordSpec describes a salvage operation.
+            properties:
+              digest:
+                description: Digest is the image content digest (sha256:...).
+                type: string
+              imageRef:
+                description: ImageRef is the original image reference from the pod
+                  spec.
+                type: string
+              podName:
+                description: PodName is the name of the pod that triggered the salvage.
+                type: string
+              sourceNode:
+                description: SourceNode is the node the image was exported from.
+                type: string
+              targetNode:
+                description: TargetNode is the node the image was imported to.
+                type: string
+            required:
+            - digest
+            - imageRef
+            - podName
+            - sourceNode
+            - targetNode
+            type: object
+          status:
+            description: SalvageRecordStatus describes the outcome of a salvage operation.
+            properties:
+              completedAt:
+                description: CompletedAt is when the salvage finished (RFC3339).
+                type: string
+              error:
+                description: Error is the failure reason (empty on success).
+                type: string
+              phase:
+                description: 'Phase is the current state: Completed or Failed.'
+                type: string
+            required:
+            - phase
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

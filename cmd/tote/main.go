@@ -14,6 +14,7 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	v1alpha1 "github.com/ppiankov/tote/api/v1alpha1"
 	"github.com/ppiankov/tote/internal/agent"
 	"github.com/ppiankov/tote/internal/config"
 	"github.com/ppiankov/tote/internal/controller"
@@ -136,6 +137,7 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,

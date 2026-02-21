@@ -41,8 +41,10 @@ Add mutual TLS for gRPC agent-to-agent and controller-to-agent communication. Ge
 ### WO-9: Leader election
 Enable controller-runtime leader election (`ctrl.Options{LeaderElection: true}`). Required for running multiple controller replicas safely.
 
-### WO-10: CRDs for salvage tracking
+### WO-10: CRDs for salvage tracking ✅
 Replace pod annotations (`tote.dev/salvaged-digest`, `tote.dev/imported-at`) with a `SalvageRecord` CRD. Provides proper status tracking, history, and kubectl integration.
+
+**Implemented**: `SalvageRecord` CRD in `api/v1alpha1/` (group: `tote.dev`, version: `v1alpha1`). Spec tracks pod name, digest, image ref, source/target nodes. Status has phase (`Completed`/`Failed`), completion time, and error. Generated via controller-gen v0.20.1. Replaces pod annotation-based tracking — idempotency now uses SalvageRecord list query. Records persist independently of pods. RBAC updated. Makefile `generate` target added.
 
 ### WO-11: Detect CreateContainerError (corrupt/incomplete images) ✅
 Kubelet reports image "already present on machine" but containerd fails to unpack because content blobs (layers) are missing. Pod enters `CreateContainerError` with message `failed to resolve rootfs: content digest sha256:...: not found`.

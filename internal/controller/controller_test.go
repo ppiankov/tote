@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1 "github.com/ppiankov/tote/api/v1"
+	v1alpha1 "github.com/ppiankov/tote/api/v1alpha1"
 	"github.com/ppiankov/tote/internal/agent"
 	"github.com/ppiankov/tote/internal/config"
 	"github.com/ppiankov/tote/internal/events"
@@ -31,6 +32,7 @@ const testDigest = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca4959
 func newScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	_ = corev1.AddToScheme(s)
+	_ = v1alpha1.AddToScheme(s)
 	return s
 }
 

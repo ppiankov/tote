@@ -3,9 +3,11 @@ package transfer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -14,7 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/ppiankov/tote/api/v1"
-	"github.com/ppiankov/tote/internal/config"
+	v1alpha1 "github.com/ppiankov/tote/api/v1alpha1"
 	"github.com/ppiankov/tote/internal/events"
 	"github.com/ppiankov/tote/internal/metrics"
 	"github.com/ppiankov/tote/internal/registry"
@@ -129,6 +131,11 @@ func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, ima
 	o.Emitter.EmitSalvaged(pod, digest, sourceNode, targetNode)
 	logger.Info("salvage complete", "digest", digest, "source", sourceNode, "target", targetNode)
 
+	// Record the salvage as a CRD for persistent history.
+	if err := o.createSalvageRecord(ctx, pod, digest, imageRef, sourceNode, targetNode, "Completed", ""); err != nil {
+		logger.Error(err, "failed to create SalvageRecord")
+	}
+
 	// Optional: push to backup registry (non-fatal).
 	if o.BackupRegistry != "" {
 		o.pushToBackupRegistry(ctx, pod, digest, imageRef, sourceEndpoint, sourceNode)
@@ -141,11 +148,6 @@ func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, ima
 			logger.Error(err, "failed to delete pod after salvage", "pod", pod.Name)
 		} else {
 			logger.Info("deleted pod for fast recovery", "pod", pod.Name, "namespace", pod.Namespace)
-		}
-	} else {
-		// Standalone pod: mark as salvaged so we don't retry.
-		if err := o.patchPodAnnotation(ctx, pod, digest); err != nil {
-			logger.Error(err, "failed to patch pod annotation after salvage")
 		}
 	}
 
@@ -204,14 +206,38 @@ func (o *Orchestrator) importFrom(ctx context.Context, endpoint, token, digest, 
 	return nil
 }
 
-func (o *Orchestrator) patchPodAnnotation(ctx context.Context, pod *corev1.Pod, digest string) error {
-	patch := client.MergeFrom(pod.DeepCopy())
-	if pod.Annotations == nil {
-		pod.Annotations = make(map[string]string)
+// createSalvageRecord persists a SalvageRecord CR for tracking.
+func (o *Orchestrator) createSalvageRecord(ctx context.Context, pod *corev1.Pod, digest, imageRef, sourceNode, targetNode, phase, errMsg string) error {
+	// Extract short hex from digest (e.g. "sha256:abc123de..." -> "abc123de").
+	shortDigest := digest
+	if idx := strings.Index(digest, ":"); idx >= 0 {
+		shortDigest = digest[idx+1:]
 	}
-	pod.Annotations[config.AnnotationSalvagedDigest] = digest
-	pod.Annotations[config.AnnotationImportedAt] = time.Now().UTC().Format(time.RFC3339)
-	return o.Client.Patch(ctx, pod, patch)
+	if len(shortDigest) > 8 {
+		shortDigest = shortDigest[:8]
+	}
+	name := fmt.Sprintf("%s-%s", pod.Name, shortDigest)
+
+	record := &v1alpha1.SalvageRecord{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: pod.Namespace,
+		},
+		Spec: v1alpha1.SalvageRecordSpec{
+			PodName:    pod.Name,
+			Digest:     digest,
+			ImageRef:   imageRef,
+			SourceNode: sourceNode,
+			TargetNode: targetNode,
+		},
+		Status: v1alpha1.SalvageRecordStatus{
+			Phase:       phase,
+			CompletedAt: time.Now().UTC().Format(time.RFC3339),
+			Error:       errMsg,
+		},
+	}
+
+	return o.Client.Create(ctx, record)
 }
 
 func (o *Orchestrator) pushToBackupRegistry(ctx context.Context, pod *corev1.Pod, digest, imageRef, sourceEndpoint, sourceNode string) {

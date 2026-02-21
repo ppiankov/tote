@@ -8,11 +8,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	v1alpha1 "github.com/ppiankov/tote/api/v1alpha1"
 )
 
 func newScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	_ = corev1.AddToScheme(s)
+	_ = v1alpha1.AddToScheme(s)
 	return s
 }
 
