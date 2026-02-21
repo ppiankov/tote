@@ -47,6 +47,10 @@ controller:
   # Allow HTTP connections to backup registry.
   backupRegistryInsecure: false
 
+# Grafana dashboard ConfigMap (requires Grafana sidecar).
+dashboard:
+  enabled: true
+
 # Agent DaemonSet configuration.
 agent:
   enabled: true
