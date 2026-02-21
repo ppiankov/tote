@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,7 +68,7 @@ func TestOrchestratorSalvage_RateLimited(t *testing.T) {
 	sessions := session.NewStore()
 	resolver := NewResolver(cl, "tote-system", 9090)
 
-	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 1, 5*time.Minute)
+	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 1, 5*time.Minute, 0)
 
 	// Fill the semaphore
 	o.Semaphore <- struct{}{}
@@ -91,7 +92,7 @@ func TestOrchestratorSalvage_NoSourceAgent(t *testing.T) {
 	sessions := session.NewStore()
 	resolver := NewResolver(cl, "tote-system", 9090)
 
-	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute)
+	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute, 0)
 
 	err := o.Salvage(context.Background(), pod, "sha256:abc", "node-source")
 	if err == nil {
@@ -168,7 +169,7 @@ func TestOrchestratorSemaphore(t *testing.T) {
 	sessions := session.NewStore()
 	resolver := NewResolver(cl, "tote-system", 9090)
 
-	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute)
+	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute, 0)
 
 	// Salvage will fail (no agent pods), but semaphore should be released
 	_ = o.Salvage(context.Background(), pod, "sha256:abc", "node-source")
@@ -227,7 +228,7 @@ func salvageOrchestrator(t *testing.T, pod *corev1.Pod) (*Orchestrator, *k8seven
 	rec := k8sevents.NewFakeRecorder(10)
 	reg := prometheus.NewRegistry()
 	resolver := NewResolver(cl, "tote-system", port)
-	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute)
+	o := NewOrchestrator(sessions, resolver, events.NewEmitter(rec), metrics.NewCounters(reg), cl, 2, 5*time.Minute, 0)
 
 	return o, rec, cl
 }
@@ -269,5 +270,34 @@ func TestOrchestratorSalvage_AnnotatesStandalonePod(t *testing.T) {
 	}
 	if got.Annotations[config.AnnotationImportedAt] == "" {
 		t.Error("expected imported-at annotation to be set")
+	}
+}
+
+func TestOrchestratorSalvage_ImageSizeExceeded(t *testing.T) {
+	pod := targetPod()
+	o, _, _ := salvageOrchestrator(t, pod)
+
+	// Image data is 14 bytes ("image-tar-data"). Set limit to 10 bytes.
+	o.MaxImageSize = 10
+
+	err := o.Salvage(context.Background(), pod, "sha256:aaa", "node-source")
+	if err == nil {
+		t.Fatal("expected error for oversized image")
+	}
+	if !strings.Contains(err.Error(), "image size exceeded") {
+		t.Errorf("expected size exceeded error, got: %v", err)
+	}
+}
+
+func TestOrchestratorSalvage_ImageSizeWithinLimit(t *testing.T) {
+	pod := targetPod()
+	o, _, _ := salvageOrchestrator(t, pod)
+
+	// Image data is 14 bytes. Set limit to 100 bytes — should pass.
+	o.MaxImageSize = 100
+
+	err := o.Salvage(context.Background(), pod, "sha256:aaa", "node-source")
+	if err != nil {
+		t.Fatalf("salvage should succeed within size limit: %v", err)
 	}
 }

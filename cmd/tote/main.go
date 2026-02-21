@@ -62,13 +62,14 @@ func newControllerCmd() *cobra.Command {
 		sessionTTL            string
 		agentNamespace        string
 		agentGRPCPort         int
+		maxImageSize          int64
 	)
 
 	cmd := &cobra.Command{
 		Use:   "controller",
 		Short: "Run the tote controller (detects failures, orchestrates salvage)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort)
+			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize)
 		},
 	}
 
@@ -78,6 +79,7 @@ func newControllerCmd() *cobra.Command {
 	cmd.Flags().StringVar(&sessionTTL, "session-ttl", config.DefaultSessionTTL.String(), "session lifetime for salvage operations")
 	cmd.Flags().StringVar(&agentNamespace, "agent-namespace", "", "namespace where tote agents run (required for salvage)")
 	cmd.Flags().IntVar(&agentGRPCPort, "agent-grpc-port", config.DefaultAgentGRPCPort, "gRPC port for agent communication")
+	cmd.Flags().Int64Var(&maxImageSize, "max-image-size", config.DefaultMaxImageSize, "max image size in bytes for salvage (0 = no limit)")
 
 	return cmd
 }
@@ -104,7 +106,7 @@ func newAgentCmd() *cobra.Command {
 	return cmd
 }
 
-func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int) error {
+func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64) error {
 	ctrl.SetLogger(zap.New())
 
 	scheme := runtime.NewScheme()
@@ -125,6 +127,7 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 	cfg.AgentNamespace = agentNamespace
 	cfg.AgentGRPCPort = agentGRPCPort
 	cfg.MaxConcurrentSalvages = maxConcurrentSalvages
+	cfg.MaxImageSize = maxImageSize
 
 	sessionTTL := config.DefaultSessionTTL
 	if sessionTTLStr != "" && sessionTTLStr != config.DefaultSessionTTL.String() {
@@ -154,7 +157,7 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 		reconciler.AgentResolver = resolver
 		reconciler.Orchestrator = transfer.NewOrchestrator(
 			sessions, resolver, emitter, m, mgr.GetClient(),
-			maxConcurrentSalvages, sessionTTL,
+			maxConcurrentSalvages, sessionTTL, maxImageSize,
 		)
 	}
 
