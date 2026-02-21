@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.4.0] - 2026-02-21
+
+### Added
+
+- Push salvaged images to backup registry via `--backup-registry` (WO-5)
+- Grafana dashboard with ConfigMap for sidecar auto-discovery (WO-6)
+- mTLS for gRPC communication via `--tls-cert`, `--tls-key`, `--tls-ca` (WO-8)
+- Leader election for multi-replica controller safety (WO-9)
+- Detect and clean `CreateContainerError` from corrupt/incomplete images (WO-11)
+- Prometheus metrics: `tote_corrupt_images_total`, `tote_push_{attempts,successes,failures}_total`
+- Kubernetes events: `ImageCorrupt`, `ImagePushed`, `ImagePushFailed`
+- CLI flags: `--backup-registry`, `--backup-registry-secret`, `--backup-registry-insecure`, `--tls-cert`, `--tls-key`, `--tls-ca`
+- `internal/registry` package for backup registry push via go-containerregistry
+- `internal/tlsutil` package for mTLS credential loading
+- `PushImage` and `RemoveImage` gRPC RPCs
+- Helm values: `tls.enabled`, `tls.secretName`, `dashboard.enabled`, `controller.backupRegistry*`
+- RBAC: secrets `get` for registry credentials, leases for leader election
+
+### Changed
+
+- CI split into 4 parallel jobs: test, lint-fast, lint-full, build (WO-7)
+- Full linter set (errcheck, staticcheck, unused) runs in CI via `.golangci-full.yml`
+- ClusterRole: added `coordination.k8s.io/leases` and `secrets` permissions
+
+## [0.3.0] - 2026-02-20
+
+### Added
+
+- Max image size guard via `--max-image-size` flag, default 2 GiB (WO-3)
+- Pod restart after salvage for fast recovery (WO-1)
+- Tag resolution via agent gRPC to bypass kubelet 50-image limit
+
+### Changed
+
+- Demoted per-reconcile agent resolution logs to V(1) (WO-2)
+- Updated README for v0.2 architecture and salvage flow (WO-4)
+
+### Fixed
+
+- CRI label on imported images; skip same-node salvage
+- Content-store API for containerd v1.x compatibility
+- Session registration on agent during PrepareExport
+- Agent runs as root to access containerd socket
+- golangci-lint usable locally with fast config
+
 ## [0.2.0] - 2026-02-08
 
 ### Added
@@ -41,5 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-deny for critical namespaces: `kube-system`, `kube-public`, `kube-node-lease`
 - CLI flags: `--enabled`, `--metrics-addr`, `--version`
 
+[Unreleased]: https://github.com/ppiankov/tote/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ppiankov/tote/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/ppiankov/tote/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ppiankov/tote/releases/tag/v0.2.0
 [0.1.0]: https://github.com/ppiankov/tote/releases/tag/v0.1.0
