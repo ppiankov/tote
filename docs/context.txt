@@ -2,7 +2,7 @@ tote context snapshot — 2026-02-22
 
 ## Current state
 
-Version: 0.5.0 (unreleased, all commits on main)
+Version: 0.4.0 (unreleased, all commits on main)
 Last tag: v0.3.0 (at WO-4 commit)
 All v0.3 and v1.0 roadmap items complete except owner workload inheritance and notifications.
 
@@ -42,4 +42,4 @@ api/v1alpha1 (SalvageRecord CRD)
 
 - Local golangci-lint is v1, config is v2 format. make lint fails locally.
   CI works fine. Could install v2 locally or keep as-is.
-- v0.3.0 tag was premature (only covered WO-1-4). No v0.4.0 or v0.5.0 tags yet.
+- v0.3.0 tag was premature (only covered WO-1-4). No v0.4.0 tag yet.
