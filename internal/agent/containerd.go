@@ -22,6 +22,7 @@ type ImageStore interface {
 	ResolveTag(ctx context.Context, imageRef string) (string, error)
 	Export(ctx context.Context, digest string, w io.Writer) error
 	Import(ctx context.Context, r io.Reader) (string, error)
+	Remove(ctx context.Context, imageRef string) error
 }
 
 // ContainerdStore implements ImageStore using the containerd client.
@@ -108,6 +109,11 @@ func (s *ContainerdStore) Size(ctx context.Context, digest string) (int64, error
 	}
 	img := containerd.NewImage(s.client, imgs[0])
 	return img.Size(ctx)
+}
+
+// Remove deletes an image record from containerd by name/reference.
+func (s *ContainerdStore) Remove(ctx context.Context, imageRef string) error {
+	return s.client.ImageService().Delete(ctx, imageRef)
 }
 
 // Export writes the image with the given digest as a tar archive to w.

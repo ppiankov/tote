@@ -24,6 +24,7 @@ const (
 	ToteAgent_ImportFrom_FullMethodName    = "/tote.v1.ToteAgent/ImportFrom"
 	ToteAgent_ListImages_FullMethodName    = "/tote.v1.ToteAgent/ListImages"
 	ToteAgent_ResolveTag_FullMethodName    = "/tote.v1.ToteAgent/ResolveTag"
+	ToteAgent_RemoveImage_FullMethodName   = "/tote.v1.ToteAgent/RemoveImage"
 )
 
 // ToteAgentClient is the client API for ToteAgent service.
@@ -40,6 +41,8 @@ type ToteAgentClient interface {
 	ListImages(ctx context.Context, in *ListImagesRequest, opts ...grpc.CallOption) (*ListImagesResponse, error)
 	// Controller -> agent: resolve a tag reference to a digest via containerd.
 	ResolveTag(ctx context.Context, in *ResolveTagRequest, opts ...grpc.CallOption) (*ResolveTagResponse, error)
+	// Controller -> agent: remove a corrupt image record from containerd.
+	RemoveImage(ctx context.Context, in *RemoveImageRequest, opts ...grpc.CallOption) (*RemoveImageResponse, error)
 }
 
 type toteAgentClient struct {
@@ -109,6 +112,16 @@ func (c *toteAgentClient) ResolveTag(ctx context.Context, in *ResolveTagRequest,
 	return out, nil
 }
 
+func (c *toteAgentClient) RemoveImage(ctx context.Context, in *RemoveImageRequest, opts ...grpc.CallOption) (*RemoveImageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveImageResponse)
+	err := c.cc.Invoke(ctx, ToteAgent_RemoveImage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ToteAgentServer is the server API for ToteAgent service.
 // All implementations must embed UnimplementedToteAgentServer
 // for forward compatibility.
@@ -123,6 +136,8 @@ type ToteAgentServer interface {
 	ListImages(context.Context, *ListImagesRequest) (*ListImagesResponse, error)
 	// Controller -> agent: resolve a tag reference to a digest via containerd.
 	ResolveTag(context.Context, *ResolveTagRequest) (*ResolveTagResponse, error)
+	// Controller -> agent: remove a corrupt image record from containerd.
+	RemoveImage(context.Context, *RemoveImageRequest) (*RemoveImageResponse, error)
 	mustEmbedUnimplementedToteAgentServer()
 }
 
@@ -147,6 +162,9 @@ func (UnimplementedToteAgentServer) ListImages(context.Context, *ListImagesReque
 }
 func (UnimplementedToteAgentServer) ResolveTag(context.Context, *ResolveTagRequest) (*ResolveTagResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveTag not implemented")
+}
+func (UnimplementedToteAgentServer) RemoveImage(context.Context, *RemoveImageRequest) (*RemoveImageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveImage not implemented")
 }
 func (UnimplementedToteAgentServer) mustEmbedUnimplementedToteAgentServer() {}
 func (UnimplementedToteAgentServer) testEmbeddedByValue()                   {}
@@ -252,6 +270,24 @@ func _ToteAgent_ResolveTag_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ToteAgent_RemoveImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ToteAgentServer).RemoveImage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ToteAgent_RemoveImage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ToteAgentServer).RemoveImage(ctx, req.(*RemoveImageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ToteAgent_ServiceDesc is the grpc.ServiceDesc for ToteAgent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -274,6 +310,10 @@ var ToteAgent_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveTag",
 			Handler:    _ToteAgent_ResolveTag_Handler,
+		},
+		{
+			MethodName: "RemoveImage",
+			Handler:    _ToteAgent_RemoveImage_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

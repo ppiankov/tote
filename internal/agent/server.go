@@ -206,3 +206,14 @@ func (s *Server) ResolveTag(ctx context.Context, req *v1.ResolveTagRequest) (*v1
 	}
 	return &v1.ResolveTagResponse{Digest: digest}, nil
 }
+
+// RemoveImage deletes an image record from the local containerd store.
+func (s *Server) RemoveImage(ctx context.Context, req *v1.RemoveImageRequest) (*v1.RemoveImageResponse, error) {
+	if req.ImageRef == "" {
+		return nil, fmt.Errorf("image_ref is required")
+	}
+	if err := s.Store.Remove(ctx, req.ImageRef); err != nil {
+		return nil, fmt.Errorf("removing image: %w", err)
+	}
+	return &v1.RemoveImageResponse{}, nil
+}

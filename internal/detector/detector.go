@@ -1,6 +1,10 @@
 package detector
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	"strings"
+
+	corev1 "k8s.io/api/core/v1"
+)
 
 // Failure represents a detected image pull failure for a single container.
 type Failure struct {
@@ -8,6 +12,9 @@ type Failure struct {
 	Image         string
 	Reason        string
 	Message       string
+	// CorruptImage is true when the image record exists but content blobs
+	// are missing (CreateContainerError with rootfs resolution failure).
+	CorruptImage bool
 }
 
 var imagePullFailureReasons = map[string]bool{
@@ -35,15 +42,39 @@ func detectInStatuses(statuses []corev1.ContainerStatus, specs []corev1.Containe
 		if cs.State.Waiting == nil {
 			continue
 		}
-		if !imagePullFailureReasons[cs.State.Waiting.Reason] {
+		reason := cs.State.Waiting.Reason
+		msg := cs.State.Waiting.Message
+
+		if imagePullFailureReasons[reason] {
+			failures = append(failures, Failure{
+				ContainerName: cs.Name,
+				Image:         specImage[cs.Name],
+				Reason:        reason,
+				Message:       msg,
+			})
 			continue
 		}
-		failures = append(failures, Failure{
-			ContainerName: cs.Name,
-			Image:         specImage[cs.Name],
-			Reason:        cs.State.Waiting.Reason,
-			Message:       cs.State.Waiting.Message,
-		})
+
+		// Detect corrupt images: containerd has the image record but content
+		// blobs are missing. kubelet says "already present" but container
+		// creation fails with rootfs resolution error.
+		if reason == "CreateContainerError" && isCorruptImageMessage(msg) {
+			failures = append(failures, Failure{
+				ContainerName: cs.Name,
+				Image:         specImage[cs.Name],
+				Reason:        reason,
+				Message:       msg,
+				CorruptImage:  true,
+			})
+		}
 	}
 	return failures
+}
+
+// isCorruptImageMessage returns true if the message indicates missing content
+// blobs (image record exists but layers are gone).
+func isCorruptImageMessage(msg string) bool {
+	return strings.Contains(msg, "failed to resolve rootfs") &&
+		strings.Contains(msg, "content digest") &&
+		strings.Contains(msg, "not found")
 }

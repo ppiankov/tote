@@ -19,9 +19,10 @@ tote detects this situation, finds which nodes still have the image, and transfe
 
 ## What tote is
 
-- A Kubernetes operator that watches for `ImagePullBackOff` and `ErrImagePull`
+- A Kubernetes operator that watches for `ImagePullBackOff`, `ErrImagePull`, and `CreateContainerError`
 - A detector that finds which cluster nodes still have the exact image digest cached
 - A salvage engine that transfers images node-to-node via gRPC agents and containerd
+- A cleanup tool that removes corrupt image records (content blobs missing) from containerd
 - A loud alarm that emits Kubernetes Warning events with node names
 - An emergency tool — a fire extinguisher, not plumbing
 
@@ -174,6 +175,7 @@ The following namespaces are **always excluded**, regardless of annotations:
 | `tote_detected_failures_total` | Counter | Total image pull failures detected on opted-in pods. |
 | `tote_salvageable_images_total` | Counter | Failures where the image digest was found cached on cluster nodes. |
 | `tote_not_actionable_total` | Counter | Failures where the image uses a tag instead of a digest. |
+| `tote_corrupt_images_total` | Counter | Corrupt image records detected and cleaned (content blobs missing). |
 | `tote_salvage_attempts_total` | Counter | Total salvage transfer attempts. |
 | `tote_salvage_successes_total` | Counter | Successful image salvages. |
 | `tote_salvage_failures_total` | Counter | Failed salvage attempts. |
@@ -234,10 +236,15 @@ Pod event received
   ├─ Namespace missing tote.dev/allow? → skip
   ├─ Pod missing tote.dev/auto-salvage? → skip
   │
-  ├─ detector.Detect() → any ImagePullBackOff/ErrImagePull?
+  ├─ detector.Detect() → any ImagePullBackOff/ErrImagePull/CreateContainerError?
   │   └─ No failures → skip
   │
   └─ For each failing container:
+      ├─ Corrupt image (CreateContainerError)?
+      │   ├─ Agent available → RemoveImage (delete stale record)
+      │   ├─ Owned pod → delete for fresh pull
+      │   └─ kubelet retries: fresh pull or tote salvages on next cycle
+      │
       ├─ resolver.Resolve() → has digest?
       │   ├─ Tag-only → try Node.Status.Images → try agents → emit NotActionable
       │   └─ Has digest → continue
@@ -279,8 +286,6 @@ tote uses two methods to find cached images:
 
 5. **No owner workload inheritance**: The `tote.dev/auto-salvage` annotation must be set directly on the Pod (or pod template). tote does not check the owning Deployment or StatefulSet annotations.
 
-6. **No leader election**: Running multiple replicas will emit duplicate events. Safe but redundant.
-
 ## Roadmap
 
 ### v0.1.0 — Detection
@@ -309,13 +314,13 @@ tote uses two methods to find cached images:
 
 - [ ] Push salvaged images to backup registry
 - [ ] Grafana dashboard
-- [ ] Leader election
+- [x] Leader election
 - [ ] mTLS between agents
+- [x] Detect `CreateContainerError` (corrupt/incomplete images)
 
 ### Future
 
 - [ ] CRD for salvage tracking (`SalvageRecord`)
-- [ ] Detect `CreateContainerError` (corrupt/incomplete images)
 - [ ] Owner workload annotation inheritance
 - [ ] Webhook/Slack notifications
 

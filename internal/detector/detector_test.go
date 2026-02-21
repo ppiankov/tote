@@ -132,3 +132,38 @@ func TestDetect_ImageFromSpec(t *testing.T) {
 		t.Errorf("expected image from spec, got %q", failures[0].Image)
 	}
 }
+
+func TestDetect_CreateContainerError_CorruptImage(t *testing.T) {
+	msg := "failed to create containerd container: failed to resolve rootfs: content digest sha256:b50153e8abcd1234: not found"
+	pod := podWithContainerStatus(waitingStatus("app", "CreateContainerError", msg))
+	failures := Detect(pod)
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(failures))
+	}
+	if failures[0].Reason != "CreateContainerError" {
+		t.Errorf("expected reason CreateContainerError, got %q", failures[0].Reason)
+	}
+	if !failures[0].CorruptImage {
+		t.Error("expected CorruptImage=true")
+	}
+}
+
+func TestDetect_CreateContainerError_NotCorrupt(t *testing.T) {
+	msg := "some other container creation error"
+	pod := podWithContainerStatus(waitingStatus("app", "CreateContainerError", msg))
+	failures := Detect(pod)
+	if len(failures) != 0 {
+		t.Errorf("expected 0 failures for non-corrupt CreateContainerError, got %d", len(failures))
+	}
+}
+
+func TestDetect_ImagePullBackOff_NotCorrupt(t *testing.T) {
+	pod := podWithContainerStatus(waitingStatus("app", "ImagePullBackOff", "pull failed"))
+	failures := Detect(pod)
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(failures))
+	}
+	if failures[0].CorruptImage {
+		t.Error("expected CorruptImage=false for ImagePullBackOff")
+	}
+}

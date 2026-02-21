@@ -40,5 +40,7 @@ Enable controller-runtime leader election (`ctrl.Options{LeaderElection: true}`)
 ### WO-10: CRDs for salvage tracking
 Replace pod annotations (`tote.dev/salvaged-digest`, `tote.dev/imported-at`) with a `SalvageRecord` CRD. Provides proper status tracking, history, and kubectl integration.
 
-### WO-11: Detect CreateContainerError (corrupt/incomplete images)
-Kubelet reports image "already present on machine" but containerd fails to unpack because content blobs (layers) are missing. Pod enters `CreateContainerError` with message `failed to resolve rootfs: content digest sha256:...: not found`. Tote currently only detects `ImagePullBackOff`/`ErrImagePull`. Add detection for `CreateContainerError` with rootfs resolution failures. Remediation: agent deletes the stale image record (`ctr -n k8s.io images rm <ref>`), then pod restart triggers a fresh pull. Note: use sanitized image references in events/logs — real namespace names are private.
+### WO-11: Detect CreateContainerError (corrupt/incomplete images) ✅
+Kubelet reports image "already present on machine" but containerd fails to unpack because content blobs (layers) are missing. Pod enters `CreateContainerError` with message `failed to resolve rootfs: content digest sha256:...: not found`.
+
+**Implemented**: Detector extended to catch `CreateContainerError` with rootfs resolution failures. Agent `RemoveImage` RPC deletes stale image records from containerd. Controller removes corrupt record via agent, then deletes the pod for a fresh pull. Prometheus counter `tote_corrupt_images_total` tracks occurrences.

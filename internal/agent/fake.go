@@ -77,6 +77,21 @@ func (f *FakeImageStore) ResolveTag(_ context.Context, imageRef string) (string,
 	return d, nil
 }
 
+// Remove deletes an image by tag or digest.
+func (f *FakeImageStore) Remove(_ context.Context, imageRef string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.tags[imageRef]; ok {
+		delete(f.tags, imageRef)
+		return nil
+	}
+	if _, ok := f.images[imageRef]; ok {
+		delete(f.images, imageRef)
+		return nil
+	}
+	return fmt.Errorf("image %s not found", imageRef)
+}
+
 // Export writes the stored tar data for the given digest.
 func (f *FakeImageStore) Export(_ context.Context, digest string, w io.Writer) error {
 	f.mu.Lock()
@@ -113,3 +128,4 @@ func (f *FailingImageStore) Size(_ context.Context, _ string) (int64, error)    
 func (f *FailingImageStore) ResolveTag(_ context.Context, _ string) (string, error) { return "", f.Err }
 func (f *FailingImageStore) Export(_ context.Context, _ string, _ io.Writer) error  { return f.Err }
 func (f *FailingImageStore) Import(_ context.Context, _ io.Reader) (string, error)  { return "", f.Err }
+func (f *FailingImageStore) Remove(_ context.Context, _ string) error               { return f.Err }

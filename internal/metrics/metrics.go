@@ -9,6 +9,7 @@ type Counters struct {
 	DetectedFailures  prometheus.Counter
 	SalvageableImages prometheus.Counter
 	NotActionable     prometheus.Counter
+	CorruptImages     prometheus.Counter
 	SalvageAttempts   prometheus.Counter
 	SalvageSuccesses  prometheus.Counter
 	SalvageFailures   prometheus.Counter
@@ -29,6 +30,10 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 			Name: "tote_not_actionable_total",
 			Help: "Total number of failures where the image uses a tag instead of a digest.",
 		}),
+		CorruptImages: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tote_corrupt_images_total",
+			Help: "Total number of corrupt image records detected and cleaned.",
+		}),
 		SalvageAttempts: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "tote_salvage_attempts_total",
 			Help: "Total number of image salvage attempts.",
@@ -47,6 +52,7 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 		c.DetectedFailures,
 		c.SalvageableImages,
 		c.NotActionable,
+		c.CorruptImages,
 		c.SalvageAttempts,
 		c.SalvageSuccesses,
 		c.SalvageFailures,
@@ -68,6 +74,11 @@ func (c *Counters) RecordSalvageable() {
 // RecordNotActionable increments the not-actionable counter.
 func (c *Counters) RecordNotActionable() {
 	c.NotActionable.Inc()
+}
+
+// RecordCorruptImage increments the corrupt images counter.
+func (c *Counters) RecordCorruptImage() {
+	c.CorruptImages.Inc()
 }
 
 // RecordSalvageAttempt increments the salvage attempts counter.
