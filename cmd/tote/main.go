@@ -117,6 +117,8 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 		Metrics: metricsserver.Options{
 			BindAddress: metricsAddr,
 		},
+		LeaderElection:   true,
+		LeaderElectionID: "tote-controller",
 	})
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)
