@@ -69,8 +69,8 @@ func (f *FakeImageStore) ResolveTag(_ context.Context, imageRef string) (string,
 // Export writes the stored tar data for the given digest.
 func (f *FakeImageStore) Export(_ context.Context, digest string, w io.Writer) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	data, ok := f.images[digest]
+	f.mu.Unlock()
 	if !ok {
 		return fmt.Errorf("image %s not found", digest)
 	}
@@ -80,14 +80,14 @@ func (f *FakeImageStore) Export(_ context.Context, digest string, w io.Writer) e
 
 // Import reads tar data and stores it under a deterministic digest.
 func (f *FakeImageStore) Import(_ context.Context, r io.Reader) (string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return "", err
 	}
 	digest := fmt.Sprintf("sha256:fake-%d", len(data))
+	f.mu.Lock()
 	f.images[digest] = data
+	f.mu.Unlock()
 	return digest, nil
 }
 

@@ -96,14 +96,25 @@ func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, sou
 		return err
 	}
 
-	// Success: patch pod annotation and emit event
-	if err := o.patchPodAnnotation(ctx, pod, digest); err != nil {
-		logger.Error(err, "failed to patch pod annotation after salvage")
-	}
-
 	o.Metrics.RecordSalvageSuccess()
 	o.Emitter.EmitSalvaged(pod, digest, sourceNode, targetNode)
 	logger.Info("salvage complete", "digest", digest, "source", sourceNode, "target", targetNode)
+
+	// Delete the pod so the owning controller recreates it with the cached image.
+	// Skip standalone pods (no owner) — they cannot be recreated automatically.
+	if len(pod.OwnerReferences) > 0 {
+		if err := o.Client.Delete(ctx, pod); err != nil {
+			logger.Error(err, "failed to delete pod after salvage", "pod", pod.Name)
+		} else {
+			logger.Info("deleted pod for fast recovery", "pod", pod.Name, "namespace", pod.Namespace)
+		}
+	} else {
+		// Standalone pod: mark as salvaged so we don't retry.
+		if err := o.patchPodAnnotation(ctx, pod, digest); err != nil {
+			logger.Error(err, "failed to patch pod annotation after salvage")
+		}
+	}
+
 	return nil
 }
 
