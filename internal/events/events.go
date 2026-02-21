@@ -20,9 +20,13 @@ const (
 	// ReasonSalvageFailed indicates the salvage attempt failed.
 	ReasonSalvageFailed = "ImageSalvageFailed"
 
+	// ReasonCorruptImage indicates the image record exists but content blobs are missing.
+	ReasonCorruptImage = "ImageCorrupt"
+
 	actionDetected  = "Detected"
 	actionSalvaged  = "Salvaged"
 	actionSalvaging = "Salvaging"
+	actionCleaning  = "Cleaning"
 )
 
 // Emitter emits Kubernetes events for tote detections.
@@ -71,5 +75,15 @@ func (e *Emitter) EmitSalvageFailed(pod *corev1.Pod, image, reason string) {
 		pod, nil, corev1.EventTypeWarning, ReasonSalvageFailed, actionSalvaging,
 		"Image salvage failed for %s: %s",
 		image, reason,
+	)
+}
+
+// EmitCorruptImage emits a Warning event indicating a corrupt image record was
+// detected and removed from the node's containerd.
+func (e *Emitter) EmitCorruptImage(pod *corev1.Pod, image, nodeName string) {
+	e.Recorder.Eventf(
+		pod, nil, corev1.EventTypeWarning, ReasonCorruptImage, actionCleaning,
+		"Corrupt image record for %s on node %s: content blobs missing. Removing stale record.",
+		image, nodeName,
 	)
 }
