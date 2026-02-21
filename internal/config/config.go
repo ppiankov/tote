@@ -12,12 +12,6 @@ const (
 	// AnnotationPodAutoSalvage is required on the Pod.
 	AnnotationPodAutoSalvage = "tote.dev/auto-salvage"
 
-	// AnnotationSalvagedDigest marks a pod as already salvaged for a digest.
-	AnnotationSalvagedDigest = "tote.dev/salvaged-digest"
-
-	// AnnotationImportedAt records when the salvage completed.
-	AnnotationImportedAt = "tote.dev/imported-at"
-
 	// DefaultContainerdSocket is the default containerd socket path.
 	DefaultContainerdSocket = "/run/containerd/containerd.sock"
 

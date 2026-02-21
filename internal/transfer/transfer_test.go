@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/ppiankov/tote/api/v1"
+	v1alpha1 "github.com/ppiankov/tote/api/v1alpha1"
 	"github.com/ppiankov/tote/internal/agent"
 	"github.com/ppiankov/tote/internal/config"
 	"github.com/ppiankov/tote/internal/events"
@@ -248,9 +249,22 @@ func TestOrchestratorSalvage_DeletesPodWithOwner(t *testing.T) {
 	if !apierrors.IsNotFound(err) {
 		t.Errorf("expected pod to be deleted, got err: %v", err)
 	}
+
+	// SalvageRecord should still exist even though the pod was deleted.
+	var record v1alpha1.SalvageRecord
+	key := client.ObjectKey{Namespace: pod.Namespace, Name: "owned-pod-aaa"}
+	if err := cl.Get(context.Background(), key, &record); err != nil {
+		t.Fatalf("expected SalvageRecord to exist after pod deletion: %v", err)
+	}
+	if record.Spec.SourceNode != "node-source" {
+		t.Errorf("expected sourceNode node-source, got %s", record.Spec.SourceNode)
+	}
+	if record.Spec.TargetNode != "node-target" {
+		t.Errorf("expected targetNode node-target, got %s", record.Spec.TargetNode)
+	}
 }
 
-func TestOrchestratorSalvage_AnnotatesStandalonePod(t *testing.T) {
+func TestOrchestratorSalvage_StandalonePodNotDeleted(t *testing.T) {
 	pod := targetPod() // no owner references
 	o, _, cl := salvageOrchestrator(t, pod)
 
@@ -259,17 +273,24 @@ func TestOrchestratorSalvage_AnnotatesStandalonePod(t *testing.T) {
 		t.Fatalf("salvage failed: %v", err)
 	}
 
-	// Standalone pod should NOT be deleted, but should get salvage annotations
+	// Standalone pod should NOT be deleted.
 	var got corev1.Pod
 	err = cl.Get(context.Background(), client.ObjectKeyFromObject(pod), &got)
 	if err != nil {
-		t.Fatalf("expected pod to still exist: %v", err)
+		t.Fatalf("expected standalone pod to still exist: %v", err)
 	}
-	if got.Annotations[config.AnnotationSalvagedDigest] != "sha256:aaa" {
-		t.Errorf("expected salvaged-digest annotation, got annotations: %v", got.Annotations)
+
+	// A SalvageRecord should be created for the salvage.
+	var record v1alpha1.SalvageRecord
+	key := client.ObjectKey{Namespace: pod.Namespace, Name: "failing-pod-aaa"}
+	if err := cl.Get(context.Background(), key, &record); err != nil {
+		t.Fatalf("expected SalvageRecord to exist: %v", err)
 	}
-	if got.Annotations[config.AnnotationImportedAt] == "" {
-		t.Error("expected imported-at annotation to be set")
+	if record.Spec.Digest != "sha256:aaa" {
+		t.Errorf("expected digest sha256:aaa, got %s", record.Spec.Digest)
+	}
+	if record.Status.Phase != "Completed" {
+		t.Errorf("expected phase Completed, got %s", record.Status.Phase)
 	}
 }
 
