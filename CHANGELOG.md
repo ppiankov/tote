@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-22
+
+### Added
+
+- `SalvageRecord` CRD (`tote.dev/v1alpha1`) for persistent salvage tracking (WO-10)
+- Idempotency via SalvageRecord lookup instead of pod annotations
+- CRD manifest generation via controller-gen (`make generate`)
+- Helm CRD auto-install (`charts/tote/crds/`)
+- RBAC: `tote.dev/salvagerecords` permissions
+
+### Removed
+
+- Pod annotations `tote.dev/salvaged-digest` and `tote.dev/imported-at` (replaced by SalvageRecord CRD)
+- Pod `patch` RBAC verb (no longer needed)
+
 ## [0.4.0] - 2026-02-21
 
 ### Added
@@ -88,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-deny for critical namespaces: `kube-system`, `kube-public`, `kube-node-lease`
 - CLI flags: `--enabled`, `--metrics-addr`, `--version`
 
-[Unreleased]: https://github.com/ppiankov/tote/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/ppiankov/tote/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ppiankov/tote/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ppiankov/tote/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ppiankov/tote/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ppiankov/tote/releases/tag/v0.2.0
