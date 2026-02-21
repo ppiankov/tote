@@ -26,6 +26,10 @@ rules:
   - apiGroups: [events.k8s.io]
     resources: [events]
     verbs: [create, patch]
+  # Read secrets for backup registry credentials.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get]
   # Leader election via coordination.k8s.io leases.
   - apiGroups: [coordination.k8s.io]
     resources: [leases]

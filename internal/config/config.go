@@ -60,6 +60,17 @@ type Config struct {
 
 	// MaxImageSize is the max image size in bytes for salvage. 0 means no limit.
 	MaxImageSize int64
+
+	// BackupRegistry is the registry host to push salvaged images to.
+	// Empty means registry push is disabled.
+	BackupRegistry string
+
+	// BackupRegistrySecret is the name of the k8s Secret (dockerconfigjson)
+	// containing credentials for the backup registry.
+	BackupRegistrySecret string
+
+	// BackupRegistryInsecure allows HTTP connections to the backup registry.
+	BackupRegistryInsecure bool
 }
 
 // AgentConfig holds agent-specific configuration.

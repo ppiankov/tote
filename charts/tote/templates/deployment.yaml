@@ -40,6 +40,15 @@ spec:
             {{- if .Values.agent.enabled }}
             - --agent-namespace={{ .Release.Namespace }}
             {{- end }}
+            {{- if .Values.controller.backupRegistry }}
+            - --backup-registry={{ .Values.controller.backupRegistry }}
+            {{- end }}
+            {{- if .Values.controller.backupRegistrySecret }}
+            - --backup-registry-secret={{ .Values.controller.backupRegistrySecret }}
+            {{- end }}
+            {{- if .Values.controller.backupRegistryInsecure }}
+            - --backup-registry-insecure=true
+            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ (split ":" .Values.config.metricsAddr)._1 | default 8080 }}
