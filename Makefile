@@ -4,7 +4,7 @@ VERSION    ?= dev
 LDFLAGS    := -s -w -X $(MODULE)/internal/version.Version=$(VERSION)
 GOFLAGS    := -race
 
-.PHONY: build test lint fmt clean deps vet docker-build
+.PHONY: build test lint fmt clean deps vet docker-build generate
 
 build:
 	go build -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/$(BINARY)/
@@ -28,6 +28,11 @@ clean:
 
 docker-build:
 	docker build --build-arg VERSION=$(VERSION) -t $(BINARY):$(VERSION) .
+
+generate:
+	controller-gen object paths=./api/v1alpha1/ output:dir=./api/v1alpha1/
+	controller-gen crd paths=./api/v1alpha1/ output:crd:dir=./config/crd/
+	cp config/crd/tote.dev_salvagerecords.yaml charts/tote/crds/
 
 deps:
 	go mod download
