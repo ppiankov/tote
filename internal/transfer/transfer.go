@@ -3,6 +3,7 @@ package transfer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +17,7 @@ import (
 	"github.com/ppiankov/tote/internal/config"
 	"github.com/ppiankov/tote/internal/events"
 	"github.com/ppiankov/tote/internal/metrics"
+	"github.com/ppiankov/tote/internal/registry"
 	"github.com/ppiankov/tote/internal/session"
 )
 
@@ -29,6 +31,12 @@ type Orchestrator struct {
 	Semaphore    chan struct{}
 	SessionTTL   time.Duration
 	MaxImageSize int64
+
+	// Backup registry push (optional).
+	BackupRegistry         string
+	BackupRegistrySecret   string
+	BackupRegistryInsecure bool
+	SecretNamespace        string
 }
 
 // NewOrchestrator creates an Orchestrator with the given dependencies.
@@ -54,9 +62,17 @@ func NewOrchestrator(
 	}
 }
 
+// SetBackupRegistry configures optional registry push after salvage.
+func (o *Orchestrator) SetBackupRegistry(reg, secret, namespace string, insec bool) {
+	o.BackupRegistry = reg
+	o.BackupRegistrySecret = secret
+	o.BackupRegistryInsecure = insec
+	o.SecretNamespace = namespace
+}
+
 // Salvage attempts to transfer an image from sourceNode to the pod's node.
 // It is one-shot: on failure it emits an event but does not retry.
-func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, sourceNode string) error {
+func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, imageRef, sourceNode string) error {
 	logger := log.FromContext(ctx)
 	o.Metrics.RecordSalvageAttempt()
 
@@ -110,6 +126,11 @@ func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, sou
 	o.Metrics.RecordSalvageSuccess()
 	o.Emitter.EmitSalvaged(pod, digest, sourceNode, targetNode)
 	logger.Info("salvage complete", "digest", digest, "source", sourceNode, "target", targetNode)
+
+	// Optional: push to backup registry (non-fatal).
+	if o.BackupRegistry != "" {
+		o.pushToBackupRegistry(ctx, pod, digest, imageRef, sourceEndpoint, sourceNode)
+	}
 
 	// Delete the pod so the owning controller recreates it with the cached image.
 	// Skip standalone pods (no owner) — they cannot be recreated automatically.
@@ -182,4 +203,92 @@ func (o *Orchestrator) patchPodAnnotation(ctx context.Context, pod *corev1.Pod, 
 	pod.Annotations[config.AnnotationSalvagedDigest] = digest
 	pod.Annotations[config.AnnotationImportedAt] = time.Now().UTC().Format(time.RFC3339)
 	return o.Client.Patch(ctx, pod, patch)
+}
+
+func (o *Orchestrator) pushToBackupRegistry(ctx context.Context, pod *corev1.Pod, digest, imageRef, sourceEndpoint, sourceNode string) {
+	logger := log.FromContext(ctx)
+
+	targetRef, err := registry.BackupRef(imageRef, o.BackupRegistry)
+	if err != nil {
+		logger.Error(err, "failed to construct backup ref", "image", imageRef)
+		return
+	}
+
+	o.Metrics.RecordPushAttempt()
+
+	username, password, err := o.loadRegistryCredentials(ctx)
+	if err != nil {
+		logger.Error(err, "failed to load registry credentials")
+		o.Metrics.RecordPushFailure()
+		o.Emitter.EmitPushFailed(pod, digest, targetRef, err.Error())
+		return
+	}
+
+	if err := o.pushImage(ctx, sourceEndpoint, digest, targetRef, username, password); err != nil {
+		logger.Error(err, "registry push failed (non-fatal)", "digest", digest, "target", targetRef)
+		o.Metrics.RecordPushFailure()
+		o.Emitter.EmitPushFailed(pod, digest, targetRef, err.Error())
+		return
+	}
+
+	o.Metrics.RecordPushSuccess()
+	o.Emitter.EmitPushed(pod, digest, targetRef, sourceNode)
+	logger.Info("pushed to backup registry", "digest", digest, "target", targetRef, "source", sourceNode)
+}
+
+func (o *Orchestrator) loadRegistryCredentials(ctx context.Context) (string, string, error) {
+	if o.BackupRegistrySecret == "" {
+		return "", "", nil // anonymous push
+	}
+	var secret corev1.Secret
+	key := client.ObjectKey{Namespace: o.SecretNamespace, Name: o.BackupRegistrySecret}
+	if err := o.Client.Get(ctx, key, &secret); err != nil {
+		return "", "", fmt.Errorf("reading secret %s/%s: %w", key.Namespace, key.Name, err)
+	}
+	data, ok := secret.Data[".dockerconfigjson"]
+	if !ok {
+		return "", "", fmt.Errorf("secret %s/%s missing .dockerconfigjson key", key.Namespace, key.Name)
+	}
+	return registry.ExtractCredentials(data, o.BackupRegistry)
+}
+
+func (o *Orchestrator) pushImage(ctx context.Context, endpoint, digest, targetRef, username, password string) error {
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("connecting to source for push: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	resp, err := v1.NewToteAgentClient(conn).PushImage(ctx, &v1.PushImageRequest{
+		Digest:           digest,
+		TargetRef:        targetRef,
+		RegistryUsername: username,
+		RegistryPassword: password,
+		Insecure:         o.BackupRegistryInsecure,
+	})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
+// findImageRef looks up the original image reference from the pod spec.
+func findImageRef(pod *corev1.Pod, digest string) string {
+	for _, c := range pod.Spec.Containers {
+		if strings.Contains(c.Image, digest) {
+			return c.Image
+		}
+	}
+	for _, c := range pod.Spec.InitContainers {
+		if strings.Contains(c.Image, digest) {
+			return c.Image
+		}
+	}
+	if len(pod.Spec.Containers) == 1 {
+		return pod.Spec.Containers[0].Image
+	}
+	return ""
 }

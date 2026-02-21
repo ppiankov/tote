@@ -20,6 +20,9 @@ service ToteAgent {
 
   // Controller -> agent: remove a corrupt image record from containerd.
   rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse);
+
+  // Controller -> source agent: push image to a backup registry.
+  rpc PushImage(PushImageRequest) returns (PushImageResponse);
 }
 
 message PrepareExportRequest {
@@ -63,3 +66,15 @@ message RemoveImageRequest {
   string image_ref = 1;
 }
 message RemoveImageResponse {}
+
+message PushImageRequest {
+  string digest = 1;
+  string target_ref = 2;
+  string registry_username = 3;
+  string registry_password = 4;
+  bool insecure = 5;
+}
+message PushImageResponse {
+  bool success = 1;
+  string error = 2;
+}

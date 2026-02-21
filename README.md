@@ -142,6 +142,9 @@ Warning  ImageNotActionable  Not actionable: image my-app:latest uses tag, not d
 | `--max-concurrent-salvages` | `2` | Max parallel salvage operations. |
 | `--max-image-size` | `2147483648` | Max image size in bytes for salvage (0 = no limit). |
 | `--session-ttl` | `5m` | Session lifetime for salvage operations. |
+| `--backup-registry` | | Registry host to push salvaged images (empty = disabled). |
+| `--backup-registry-secret` | | Name of dockerconfigjson Secret for backup registry credentials. |
+| `--backup-registry-insecure` | `false` | Allow HTTP connections to backup registry. |
 
 **Agent** (`tote agent`):
 
@@ -179,6 +182,9 @@ The following namespaces are **always excluded**, regardless of annotations:
 | `tote_salvage_attempts_total` | Counter | Total salvage transfer attempts. |
 | `tote_salvage_successes_total` | Counter | Successful image salvages. |
 | `tote_salvage_failures_total` | Counter | Failed salvage attempts. |
+| `tote_push_attempts_total` | Counter | Backup registry push attempts. |
+| `tote_push_successes_total` | Counter | Successful backup registry pushes. |
+| `tote_push_failures_total` | Counter | Failed backup registry push attempts. |
 
 If `tote_salvageable_images_total` is non-zero, you have technical debt. If it stays non-zero, you have a process problem.
 
@@ -204,9 +210,12 @@ rules:
   - apiGroups: [events.k8s.io]
     resources: [events]
     verbs: [create, patch]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get]
 ```
 
-Pod `patch` is for salvage annotations. Pod `delete` is for fast recovery after salvage (only pods with owner references).
+Pod `patch` is for salvage annotations. Pod `delete` is for fast recovery after salvage (only pods with owner references). Secrets `get` is for reading backup registry credentials.
 
 ## Architecture
 
@@ -224,6 +233,7 @@ internal/
   agent/                          containerd image store + gRPC agent server
   session/session.go              In-memory session store for transfer auth
   transfer/                       Orchestrator + agent endpoint resolver
+  registry/                       Backup registry push via go-containerregistry
 ```
 
 ### Reconciliation flow
@@ -262,6 +272,7 @@ Pod event received
           └─ Salvage:
               ├─ PrepareExport on source agent (verify + get size)
               ├─ ImportFrom on target agent (stream image)
+              ├─ PushImage to backup registry (optional, non-fatal)
               ├─ Delete pod (owned) or annotate (standalone)
               └─ Pod recreated by owning controller → starts immediately
 ```
@@ -312,7 +323,7 @@ tote uses two methods to find cached images:
 
 ### v0.3 — Registry push and observability
 
-- [ ] Push salvaged images to backup registry
+- [x] Push salvaged images to backup registry
 - [ ] Grafana dashboard
 - [x] Leader election
 - [ ] mTLS between agents

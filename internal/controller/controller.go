@@ -155,7 +155,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 					logger.V(1).Info("image already on target node, skipping salvage", "digest", digest, "node", pod.Spec.NodeName)
 					continue
 				}
-				if err := r.Orchestrator.Salvage(ctx, &pod, digest, sourceNode); err != nil {
+				if err := r.Orchestrator.Salvage(ctx, &pod, digest, f.Image, sourceNode); err != nil {
 					logger.Error(err, "salvage failed", "digest", digest)
 				}
 			}

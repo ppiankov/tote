@@ -565,6 +565,134 @@ func (*RemoveImageResponse) Descriptor() ([]byte, []int) {
 	return file_api_v1_agent_proto_rawDescGZIP(), []int{11}
 }
 
+type PushImageRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Digest           string                 `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
+	TargetRef        string                 `protobuf:"bytes,2,opt,name=target_ref,json=targetRef,proto3" json:"target_ref,omitempty"`
+	RegistryUsername string                 `protobuf:"bytes,3,opt,name=registry_username,json=registryUsername,proto3" json:"registry_username,omitempty"`
+	RegistryPassword string                 `protobuf:"bytes,4,opt,name=registry_password,json=registryPassword,proto3" json:"registry_password,omitempty"`
+	Insecure         bool                   `protobuf:"varint,5,opt,name=insecure,proto3" json:"insecure,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *PushImageRequest) Reset() {
+	*x = PushImageRequest{}
+	mi := &file_api_v1_agent_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushImageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushImageRequest) ProtoMessage() {}
+
+func (x *PushImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_agent_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushImageRequest.ProtoReflect.Descriptor instead.
+func (*PushImageRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_agent_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *PushImageRequest) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *PushImageRequest) GetTargetRef() string {
+	if x != nil {
+		return x.TargetRef
+	}
+	return ""
+}
+
+func (x *PushImageRequest) GetRegistryUsername() string {
+	if x != nil {
+		return x.RegistryUsername
+	}
+	return ""
+}
+
+func (x *PushImageRequest) GetRegistryPassword() string {
+	if x != nil {
+		return x.RegistryPassword
+	}
+	return ""
+}
+
+func (x *PushImageRequest) GetInsecure() bool {
+	if x != nil {
+		return x.Insecure
+	}
+	return false
+}
+
+type PushImageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PushImageResponse) Reset() {
+	*x = PushImageResponse{}
+	mi := &file_api_v1_agent_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushImageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushImageResponse) ProtoMessage() {}
+
+func (x *PushImageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_agent_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushImageResponse.ProtoReflect.Descriptor instead.
+func (*PushImageResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_agent_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *PushImageResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *PushImageResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_api_v1_agent_proto protoreflect.FileDescriptor
 
 const file_api_v1_agent_proto_rawDesc = "" +
@@ -596,7 +724,17 @@ const file_api_v1_agent_proto_rawDesc = "" +
 	"\x06digest\x18\x01 \x01(\tR\x06digest\"1\n" +
 	"\x12RemoveImageRequest\x12\x1b\n" +
 	"\timage_ref\x18\x01 \x01(\tR\bimageRef\"\x15\n" +
-	"\x13RemoveImageResponse2\xbc\x03\n" +
+	"\x13RemoveImageResponse\"\xbf\x01\n" +
+	"\x10PushImageRequest\x12\x16\n" +
+	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x1d\n" +
+	"\n" +
+	"target_ref\x18\x02 \x01(\tR\ttargetRef\x12+\n" +
+	"\x11registry_username\x18\x03 \x01(\tR\x10registryUsername\x12+\n" +
+	"\x11registry_password\x18\x04 \x01(\tR\x10registryPassword\x12\x1a\n" +
+	"\binsecure\x18\x05 \x01(\bR\binsecure\"C\n" +
+	"\x11PushImageResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error2\x80\x04\n" +
 	"\tToteAgent\x12N\n" +
 	"\rPrepareExport\x12\x1d.tote.v1.PrepareExportRequest\x1a\x1e.tote.v1.PrepareExportResponse\x12@\n" +
 	"\vExportImage\x12\x1b.tote.v1.ExportImageRequest\x1a\x12.tote.v1.DataChunk0\x01\x12E\n" +
@@ -606,7 +744,8 @@ const file_api_v1_agent_proto_rawDesc = "" +
 	"ListImages\x12\x1a.tote.v1.ListImagesRequest\x1a\x1b.tote.v1.ListImagesResponse\x12E\n" +
 	"\n" +
 	"ResolveTag\x12\x1a.tote.v1.ResolveTagRequest\x1a\x1b.tote.v1.ResolveTagResponse\x12H\n" +
-	"\vRemoveImage\x12\x1b.tote.v1.RemoveImageRequest\x1a\x1c.tote.v1.RemoveImageResponseB!Z\x1fgithub.com/ppiankov/tote/api/v1b\x06proto3"
+	"\vRemoveImage\x12\x1b.tote.v1.RemoveImageRequest\x1a\x1c.tote.v1.RemoveImageResponse\x12B\n" +
+	"\tPushImage\x12\x19.tote.v1.PushImageRequest\x1a\x1a.tote.v1.PushImageResponseB!Z\x1fgithub.com/ppiankov/tote/api/v1b\x06proto3"
 
 var (
 	file_api_v1_agent_proto_rawDescOnce sync.Once
@@ -620,7 +759,7 @@ func file_api_v1_agent_proto_rawDescGZIP() []byte {
 	return file_api_v1_agent_proto_rawDescData
 }
 
-var file_api_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_api_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_api_v1_agent_proto_goTypes = []any{
 	(*PrepareExportRequest)(nil),  // 0: tote.v1.PrepareExportRequest
 	(*PrepareExportResponse)(nil), // 1: tote.v1.PrepareExportResponse
@@ -634,6 +773,8 @@ var file_api_v1_agent_proto_goTypes = []any{
 	(*ResolveTagResponse)(nil),    // 9: tote.v1.ResolveTagResponse
 	(*RemoveImageRequest)(nil),    // 10: tote.v1.RemoveImageRequest
 	(*RemoveImageResponse)(nil),   // 11: tote.v1.RemoveImageResponse
+	(*PushImageRequest)(nil),      // 12: tote.v1.PushImageRequest
+	(*PushImageResponse)(nil),     // 13: tote.v1.PushImageResponse
 }
 var file_api_v1_agent_proto_depIdxs = []int32{
 	0,  // 0: tote.v1.ToteAgent.PrepareExport:input_type -> tote.v1.PrepareExportRequest
@@ -642,14 +783,16 @@ var file_api_v1_agent_proto_depIdxs = []int32{
 	6,  // 3: tote.v1.ToteAgent.ListImages:input_type -> tote.v1.ListImagesRequest
 	8,  // 4: tote.v1.ToteAgent.ResolveTag:input_type -> tote.v1.ResolveTagRequest
 	10, // 5: tote.v1.ToteAgent.RemoveImage:input_type -> tote.v1.RemoveImageRequest
-	1,  // 6: tote.v1.ToteAgent.PrepareExport:output_type -> tote.v1.PrepareExportResponse
-	3,  // 7: tote.v1.ToteAgent.ExportImage:output_type -> tote.v1.DataChunk
-	5,  // 8: tote.v1.ToteAgent.ImportFrom:output_type -> tote.v1.ImportFromResponse
-	7,  // 9: tote.v1.ToteAgent.ListImages:output_type -> tote.v1.ListImagesResponse
-	9,  // 10: tote.v1.ToteAgent.ResolveTag:output_type -> tote.v1.ResolveTagResponse
-	11, // 11: tote.v1.ToteAgent.RemoveImage:output_type -> tote.v1.RemoveImageResponse
-	6,  // [6:12] is the sub-list for method output_type
-	0,  // [0:6] is the sub-list for method input_type
+	12, // 6: tote.v1.ToteAgent.PushImage:input_type -> tote.v1.PushImageRequest
+	1,  // 7: tote.v1.ToteAgent.PrepareExport:output_type -> tote.v1.PrepareExportResponse
+	3,  // 8: tote.v1.ToteAgent.ExportImage:output_type -> tote.v1.DataChunk
+	5,  // 9: tote.v1.ToteAgent.ImportFrom:output_type -> tote.v1.ImportFromResponse
+	7,  // 10: tote.v1.ToteAgent.ListImages:output_type -> tote.v1.ListImagesResponse
+	9,  // 11: tote.v1.ToteAgent.ResolveTag:output_type -> tote.v1.ResolveTagResponse
+	11, // 12: tote.v1.ToteAgent.RemoveImage:output_type -> tote.v1.RemoveImageResponse
+	13, // 13: tote.v1.ToteAgent.PushImage:output_type -> tote.v1.PushImageResponse
+	7,  // [7:14] is the sub-list for method output_type
+	0,  // [0:7] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -666,7 +809,7 @@ func file_api_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_agent_proto_rawDesc), len(file_api_v1_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

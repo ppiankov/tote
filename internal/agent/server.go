@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/ppiankov/tote/api/v1"
+	"github.com/ppiankov/tote/internal/registry"
 	"github.com/ppiankov/tote/internal/session"
 )
 
@@ -216,4 +217,29 @@ func (s *Server) RemoveImage(ctx context.Context, req *v1.RemoveImageRequest) (*
 		return nil, fmt.Errorf("removing image: %w", err)
 	}
 	return &v1.RemoveImageResponse{}, nil
+}
+
+// PushImage exports the image from the local containerd store and pushes it
+// to a remote backup registry.
+func (s *Server) PushImage(ctx context.Context, req *v1.PushImageRequest) (*v1.PushImageResponse, error) {
+	if req.Digest == "" || req.TargetRef == "" {
+		return &v1.PushImageResponse{Success: false, Error: "digest and target_ref are required"}, nil
+	}
+
+	has, err := s.Store.Has(ctx, req.Digest)
+	if err != nil {
+		return &v1.PushImageResponse{Success: false, Error: fmt.Sprintf("checking image: %v", err)}, nil
+	}
+	if !has {
+		return &v1.PushImageResponse{Success: false, Error: fmt.Sprintf("image %s not found locally", req.Digest)}, nil
+	}
+
+	exportFn := func(ctx context.Context, digest string, w io.Writer) error {
+		return s.Store.Export(ctx, digest, w)
+	}
+	if err := registry.Push(ctx, exportFn, req.Digest, req.TargetRef, req.RegistryUsername, req.RegistryPassword, req.Insecure); err != nil {
+		return &v1.PushImageResponse{Success: false, Error: fmt.Sprintf("push failed: %v", err)}, nil
+	}
+
+	return &v1.PushImageResponse{Success: true}, nil
 }

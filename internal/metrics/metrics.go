@@ -13,6 +13,9 @@ type Counters struct {
 	SalvageAttempts   prometheus.Counter
 	SalvageSuccesses  prometheus.Counter
 	SalvageFailures   prometheus.Counter
+	PushAttempts      prometheus.Counter
+	PushSuccesses     prometheus.Counter
+	PushFailures      prometheus.Counter
 }
 
 // NewCounters creates and registers Prometheus counters with the given registry.
@@ -46,6 +49,18 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 			Name: "tote_salvage_failures_total",
 			Help: "Total number of failed image salvage attempts.",
 		}),
+		PushAttempts: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tote_push_attempts_total",
+			Help: "Total number of backup registry push attempts.",
+		}),
+		PushSuccesses: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tote_push_successes_total",
+			Help: "Total number of successful backup registry pushes.",
+		}),
+		PushFailures: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tote_push_failures_total",
+			Help: "Total number of failed backup registry push attempts.",
+		}),
 	}
 
 	reg.MustRegister(
@@ -56,6 +71,9 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 		c.SalvageAttempts,
 		c.SalvageSuccesses,
 		c.SalvageFailures,
+		c.PushAttempts,
+		c.PushSuccesses,
+		c.PushFailures,
 	)
 
 	return c
@@ -94,4 +112,19 @@ func (c *Counters) RecordSalvageSuccess() {
 // RecordSalvageFailure increments the salvage failures counter.
 func (c *Counters) RecordSalvageFailure() {
 	c.SalvageFailures.Inc()
+}
+
+// RecordPushAttempt increments the push attempts counter.
+func (c *Counters) RecordPushAttempt() {
+	c.PushAttempts.Inc()
+}
+
+// RecordPushSuccess increments the push successes counter.
+func (c *Counters) RecordPushSuccess() {
+	c.PushSuccesses.Inc()
+}
+
+// RecordPushFailure increments the push failures counter.
+func (c *Counters) RecordPushFailure() {
+	c.PushFailures.Inc()
 }

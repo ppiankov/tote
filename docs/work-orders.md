@@ -16,8 +16,8 @@ README still describes v0.1 (detection only). Update: What tote is/is NOT, archi
 
 ## v0.3 — Registry push and observability
 
-### WO-5: Registry push
-After node-to-node salvage, optionally push the image to a configurable backup registry (`--backup-registry`). This makes the image available to ALL nodes, not just the target. Requires registry credentials (pull from Secret or ServiceAccount).
+### WO-5: Registry push ✅
+After successful salvage, optionally push the image to a configurable backup registry via `--backup-registry`. Controller reads credentials from a dockerconfigjson Secret (`--backup-registry-secret`), passes them to the source agent via gRPC. Agent uses `go-containerregistry` to export from containerd and push. Push is non-fatal — failure logged + event + metric. New package: `internal/registry` (push, ref rewriting, credential extraction). Three new Prometheus counters: `tote_push_{attempts,successes,failures}_total`.
 
 ### WO-6: Grafana dashboard
 Ship `charts/tote/dashboards/tote.json` with panels: salvage rate, failure rate, detected vs salvageable ratio, not-actionable count. Add a ConfigMap in the Helm chart for Grafana sidecar auto-discovery.

@@ -56,20 +56,23 @@ func newRootCmd() *cobra.Command {
 
 func newControllerCmd() *cobra.Command {
 	var (
-		enabled               bool
-		metricsAddr           string
-		maxConcurrentSalvages int
-		sessionTTL            string
-		agentNamespace        string
-		agentGRPCPort         int
-		maxImageSize          int64
+		enabled                bool
+		metricsAddr            string
+		maxConcurrentSalvages  int
+		sessionTTL             string
+		agentNamespace         string
+		agentGRPCPort          int
+		maxImageSize           int64
+		backupRegistry         string
+		backupRegistrySecret   string
+		backupRegistryInsecure bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "controller",
 		Short: "Run the tote controller (detects failures, orchestrates salvage)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize)
+			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure)
 		},
 	}
 
@@ -80,6 +83,9 @@ func newControllerCmd() *cobra.Command {
 	cmd.Flags().StringVar(&agentNamespace, "agent-namespace", "", "namespace where tote agents run (required for salvage)")
 	cmd.Flags().IntVar(&agentGRPCPort, "agent-grpc-port", config.DefaultAgentGRPCPort, "gRPC port for agent communication")
 	cmd.Flags().Int64Var(&maxImageSize, "max-image-size", config.DefaultMaxImageSize, "max image size in bytes for salvage (0 = no limit)")
+	cmd.Flags().StringVar(&backupRegistry, "backup-registry", "", "registry host to push salvaged images (empty = disabled)")
+	cmd.Flags().StringVar(&backupRegistrySecret, "backup-registry-secret", "", "name of dockerconfigjson Secret for backup registry credentials")
+	cmd.Flags().BoolVar(&backupRegistryInsecure, "backup-registry-insecure", false, "allow HTTP connections to backup registry")
 
 	return cmd
 }
@@ -106,7 +112,7 @@ func newAgentCmd() *cobra.Command {
 	return cmd
 }
 
-func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64) error {
+func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool) error {
 	ctrl.SetLogger(zap.New())
 
 	scheme := runtime.NewScheme()
@@ -161,6 +167,9 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 			sessions, resolver, emitter, m, mgr.GetClient(),
 			maxConcurrentSalvages, sessionTTL, maxImageSize,
 		)
+		if backupRegistry != "" {
+			reconciler.Orchestrator.SetBackupRegistry(backupRegistry, backupRegistrySecret, agentNamespace, backupRegistryInsecure)
+		}
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
