@@ -147,6 +147,9 @@ func (s *ContainerdStore) Import(ctx context.Context, r io.Reader) (string, erro
 		if _, err := s.client.ImageService().Create(ctx, ctrimg.Image{
 			Name:   name,
 			Target: m,
+			Labels: map[string]string{
+				"io.cri-containerd.image": "managed",
+			},
 		}); err != nil && !errdefs.IsAlreadyExists(err) {
 			return "", fmt.Errorf("creating image record: %w", err)
 		}
