@@ -50,3 +50,52 @@ Replace pod annotations (`tote.dev/salvaged-digest`, `tote.dev/imported-at`) wit
 Kubelet reports image "already present on machine" but containerd fails to unpack because content blobs (layers) are missing. Pod enters `CreateContainerError` with message `failed to resolve rootfs: content digest sha256:...: not found`.
 
 **Implemented**: Detector extended to catch `CreateContainerError` with rootfs resolution failures. Agent `RemoveImage` RPC deletes stale image records from containerd. Controller removes corrupt record via agent, then deletes the pod for a fresh pull. Prometheus counter `tote_corrupt_images_total` tracks occurrences.
+
+## v0.5 — Usability and notifications
+
+### WO-12: Owner workload annotation inheritance
+Currently `tote.dev/auto-salvage` must be set directly on the Pod (or pod template). This is fine for Deployments (you annotate the template), but makes bulk opt-in tedious for clusters with many workloads.
+
+Add annotation inheritance: if a Pod lacks `tote.dev/auto-salvage`, walk its `ownerReferences` chain (Pod → ReplicaSet → Deployment, or Pod → StatefulSet) and check each owner for the annotation. Stop at the first match.
+
+**Scope:**
+- Support Deployment, StatefulSet, DaemonSet, ReplicaSet, and Job owners
+- Walk at most 2 levels deep (Pod → ReplicaSet → Deployment)
+- Cache owner lookups per reconcile (multiple containers in one pod share the same owner chain)
+- Add RBAC: `get` on `apps/v1` Deployments, StatefulSets, DaemonSets, ReplicaSets and `batch/v1` Jobs
+- Update README: document the inheritance behavior and new RBAC
+- No new CLI flags — inheritance is always active
+
+**Not in scope:**
+- Namespace-level "auto-salvage all pods" — too broad, violates explicit opt-in philosophy
+- Label selectors — annotations are the established pattern, keep it simple
+
+### WO-13: Webhook/Slack notifications
+Send notifications to external systems when tote detects or salvages images. Useful for teams that don't monitor Kubernetes events or Prometheus directly.
+
+**Scope:**
+- Generic webhook: POST JSON payload to a configurable URL on salvage events
+- Slack: format the webhook payload as a Slack Block Kit message (Slack-compatible webhook URL)
+- Controller flags: `--webhook-url`, `--webhook-events` (comma-separated: `detected`, `salvaged`, `failed`, `pushed`)
+- Payload includes: event type, pod name/namespace, image ref, digest, source/target nodes, timestamp
+- Fire-and-forget with timeout (5s default) — notification failure must never block reconciliation
+- New package: `internal/notify` (webhook client, payload formatting)
+- Helm values: `notifications.webhookUrl`, `notifications.events`
+- Prometheus counter: `tote_webhook_failures_total`
+
+**Not in scope:**
+- Per-namespace or per-pod webhook configuration — single global webhook is enough for v0.5
+- Email, PagerDuty, or other integrations — generic webhook covers these via intermediaries
+- Retry or delivery guarantees — this is best-effort alerting, not an event bus
+
+## Housekeeping
+
+### WO-14: Tag v0.4.0 release
+No git tag exists for v0.4.0. The release workflow (`release.yml`) triggers on `v*` tags and builds binaries, container images, and GitHub releases automatically.
+
+**Steps:**
+1. Verify CI passes on current main
+2. `git tag v0.4.0 && git push origin v0.4.0`
+3. Verify release workflow: binaries built, checksums generated, container image pushed to ghcr.io
+4. Verify GitHub release page has correct changelog body
+5. Clean up: add `tote` binary to `.gitignore` if not already there
