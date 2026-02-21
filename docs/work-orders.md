@@ -33,8 +33,10 @@ Ship `charts/tote/dashboards/tote.json` with panels: salvage rate, failure rate,
 
 ## v1.0 — Production hardening
 
-### WO-8: mTLS between agents
+### WO-8: mTLS between agents ✅
 Add mutual TLS for gRPC agent-to-agent and controller-to-agent communication. Generate certs via cert-manager or mount from Secrets. Required for regulated environments.
+
+**Implemented**: New `internal/tlsutil` package with `ServerCredentials` and `ClientCredentials` functions. TLS 1.3 minimum, `RequireAndVerifyClientCert` on server, fixed `ServerName: "tote"` for hostname verification. Optional via `--tls-cert`, `--tls-key`, `--tls-ca` flags on both controller and agent. All 6 insecure gRPC client connections and the agent server now conditionally use mTLS. Helm chart supports `tls.enabled` and `tls.secretName` with volume mounts on both Deployment and DaemonSet. Compatible with cert-manager Certificate resources.
 
 ### WO-9: Leader election
 Enable controller-runtime leader election (`ctrl.Options{LeaderElection: true}`). Required for running multiple controller replicas safely.

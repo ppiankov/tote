@@ -145,6 +145,9 @@ Warning  ImageNotActionable  Not actionable: image my-app:latest uses tag, not d
 | `--backup-registry` | | Registry host to push salvaged images (empty = disabled). |
 | `--backup-registry-secret` | | Name of dockerconfigjson Secret for backup registry credentials. |
 | `--backup-registry-insecure` | `false` | Allow HTTP connections to backup registry. |
+| `--tls-cert` | | Path to TLS certificate file (enables mTLS when all three TLS flags are set). |
+| `--tls-key` | | Path to TLS private key file. |
+| `--tls-ca` | | Path to CA certificate file for verifying peers. |
 
 **Agent** (`tote agent`):
 
@@ -153,6 +156,9 @@ Warning  ImageNotActionable  Not actionable: image my-app:latest uses tag, not d
 | `--containerd-socket` | `/run/containerd/containerd.sock` | Path to containerd socket. |
 | `--grpc-port` | `9090` | gRPC listen port. |
 | `--metrics-addr` | `:8081` | Bind address for the Prometheus metrics endpoint. |
+| `--tls-cert` | | Path to TLS certificate file (enables mTLS when all three TLS flags are set). |
+| `--tls-key` | | Path to TLS private key file. |
+| `--tls-ca` | | Path to CA certificate file for verifying peers. |
 
 ### Annotations
 
@@ -234,6 +240,7 @@ internal/
   session/session.go              In-memory session store for transfer auth
   transfer/                       Orchestrator + agent endpoint resolver
   registry/                       Backup registry push via go-containerregistry
+  tlsutil/                        mTLS credential loading for gRPC
 ```
 
 ### Reconciliation flow
@@ -326,7 +333,7 @@ tote uses two methods to find cached images:
 - [x] Push salvaged images to backup registry
 - [x] Grafana dashboard
 - [x] Leader election
-- [ ] mTLS between agents
+- [x] mTLS between agents
 - [x] Detect `CreateContainerError` (corrupt/incomplete images)
 
 ### Future

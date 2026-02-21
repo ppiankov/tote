@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/ppiankov/tote/api/v1"
@@ -36,6 +37,8 @@ type Orchestrator struct {
 	BackupRegistrySecret   string
 	BackupRegistryInsecure bool
 	SecretNamespace        string
+
+	TransportCreds credentials.TransportCredentials // nil = insecure
 }
 
 // NewOrchestrator creates an Orchestrator with the given dependencies.
@@ -149,13 +152,20 @@ func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, ima
 	return nil
 }
 
+func (o *Orchestrator) dialOption() grpc.DialOption {
+	if o.TransportCreds != nil {
+		return grpc.WithTransportCredentials(o.TransportCreds)
+	}
+	return grpc.WithTransportCredentials(insecure.NewCredentials())
+}
+
 func (o *Orchestrator) fail(pod *corev1.Pod, digest, reason string) {
 	o.Metrics.RecordSalvageFailure()
 	o.Emitter.EmitSalvageFailed(pod, digest, reason)
 }
 
 func (o *Orchestrator) prepareExport(ctx context.Context, endpoint, token, digest string) (int64, error) {
-	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(endpoint, o.dialOption())
 	if err != nil {
 		return 0, fmt.Errorf("connecting to source: %w", err)
 	}
@@ -173,7 +183,7 @@ func (o *Orchestrator) prepareExport(ctx context.Context, endpoint, token, diges
 }
 
 func (o *Orchestrator) importFrom(ctx context.Context, endpoint, token, digest, sourceEndpoint string) error {
-	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(endpoint, o.dialOption())
 	if err != nil {
 		return fmt.Errorf("connecting to target: %w", err)
 	}
@@ -252,7 +262,7 @@ func (o *Orchestrator) loadRegistryCredentials(ctx context.Context) (string, str
 }
 
 func (o *Orchestrator) pushImage(ctx context.Context, endpoint, digest, targetRef, username, password string) error {
-	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(endpoint, o.dialOption())
 	if err != nil {
 		return fmt.Errorf("connecting to source for push: %w", err)
 	}

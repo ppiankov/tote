@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,9 +16,10 @@ import (
 
 // Resolver finds agent pod endpoints by node name.
 type Resolver struct {
-	Client    client.Reader
-	Namespace string
-	Port      int
+	Client         client.Reader
+	Namespace      string
+	Port           int
+	TransportCreds credentials.TransportCredentials // nil = insecure
 }
 
 // NewResolver creates a Resolver that looks up agent pods in the given namespace.
@@ -72,7 +74,7 @@ func (r *Resolver) ResolveTagViaAgents(ctx context.Context, imageRef string) (st
 			continue
 		}
 		endpoint := fmt.Sprintf("%s:%d", pod.Status.PodIP, r.Port)
-		digest, err := resolveTagFromAgent(ctx, endpoint, imageRef)
+		digest, err := r.resolveTagFromAgent(ctx, endpoint, imageRef)
 		if err != nil {
 			logger.V(1).Info("agent ResolveTag failed", "endpoint", endpoint, "node", pod.Spec.NodeName, "error", err)
 			continue
@@ -85,13 +87,20 @@ func (r *Resolver) ResolveTagViaAgents(ctx context.Context, imageRef string) (st
 	return "", "", nil
 }
 
+func (r *Resolver) dialOption() grpc.DialOption {
+	if r.TransportCreds != nil {
+		return grpc.WithTransportCredentials(r.TransportCreds)
+	}
+	return grpc.WithTransportCredentials(insecure.NewCredentials())
+}
+
 // RemoveImageOnNode calls the agent on the given node to remove an image record.
 func (r *Resolver) RemoveImageOnNode(ctx context.Context, nodeName, imageRef string) error {
 	endpoint, err := r.EndpointForNode(ctx, nodeName)
 	if err != nil {
 		return err
 	}
-	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(endpoint, r.dialOption())
 	if err != nil {
 		return fmt.Errorf("connecting to agent: %w", err)
 	}
@@ -101,8 +110,8 @@ func (r *Resolver) RemoveImageOnNode(ctx context.Context, nodeName, imageRef str
 	return err
 }
 
-func resolveTagFromAgent(ctx context.Context, endpoint, imageRef string) (string, error) {
-	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func (r *Resolver) resolveTagFromAgent(ctx context.Context, endpoint, imageRef string) (string, error) {
+	conn, err := grpc.NewClient(endpoint, r.dialOption())
 	if err != nil {
 		return "", err
 	}

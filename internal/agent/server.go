@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/ppiankov/tote/api/v1"
@@ -20,9 +21,11 @@ const exportChunkSize = 32 * 1024 // 32 KiB
 // Server implements the ToteAgent gRPC service.
 type Server struct {
 	v1.UnimplementedToteAgentServer
-	Store    ImageStore
-	Sessions *session.Store
-	Port     int
+	Store       ImageStore
+	Sessions    *session.Store
+	Port        int
+	ServerCreds credentials.TransportCredentials // nil = insecure
+	ClientCreds credentials.TransportCredentials // nil = insecure (for agent-to-agent)
 }
 
 // NewServer creates a new agent gRPC server.
@@ -41,7 +44,11 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("listen on port %d: %w", s.Port, err)
 	}
 
-	srv := grpc.NewServer()
+	var opts []grpc.ServerOption
+	if s.ServerCreds != nil {
+		opts = append(opts, grpc.Creds(s.ServerCreds))
+	}
+	srv := grpc.NewServer(opts...)
 	v1.RegisterToteAgentServer(srv, s)
 
 	go func() {
@@ -127,7 +134,11 @@ func (s *Server) ImportFrom(ctx context.Context, req *v1.ImportFromRequest) (*v1
 		return &v1.ImportFromResponse{Success: false, Error: "session_token, digest, and source_endpoint are required"}, nil
 	}
 
-	conn, err := grpc.NewClient(req.SourceEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialCreds := grpc.WithTransportCredentials(insecure.NewCredentials())
+	if s.ClientCreds != nil {
+		dialCreds = grpc.WithTransportCredentials(s.ClientCreds)
+	}
+	conn, err := grpc.NewClient(req.SourceEndpoint, dialCreds)
 	if err != nil {
 		return &v1.ImportFromResponse{Success: false, Error: fmt.Sprintf("connecting to source: %v", err)}, nil
 	}
