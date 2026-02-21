@@ -324,7 +324,7 @@ tote uses two methods to find cached images:
 ### v0.3 — Registry push and observability
 
 - [x] Push salvaged images to backup registry
-- [ ] Grafana dashboard
+- [x] Grafana dashboard
 - [x] Leader election
 - [ ] mTLS between agents
 - [x] Detect `CreateContainerError` (corrupt/incomplete images)

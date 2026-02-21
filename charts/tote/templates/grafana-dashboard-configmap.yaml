@@ -1,0 +1,13 @@
+{{- if .Values.dashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tote.fullname" . }}-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tote.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  tote.json: |-
+    {{- .Files.Get "dashboards/tote.json" | nindent 4 }}
+{{- end }}
