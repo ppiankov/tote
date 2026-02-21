@@ -63,6 +63,28 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 	for _, f := range failures {
 		r.Metrics.RecordDetected()
 
+		// Corrupt image: record exists but content blobs are missing.
+		// Remove the stale record and restart the pod for a clean pull.
+		if f.CorruptImage {
+			r.Metrics.RecordCorruptImage()
+			if r.AgentResolver != nil && pod.Spec.NodeName != "" {
+				logger.Info("corrupt image detected, removing stale record", "image", f.Image, "node", pod.Spec.NodeName)
+				r.Emitter.EmitCorruptImage(&pod, f.Image, pod.Spec.NodeName)
+				if err := r.AgentResolver.RemoveImageOnNode(ctx, pod.Spec.NodeName, f.Image); err != nil {
+					logger.Error(err, "failed to remove corrupt image", "image", f.Image, "node", pod.Spec.NodeName)
+					continue
+				}
+				if len(pod.OwnerReferences) > 0 {
+					if err := r.Client.Delete(ctx, &pod); err != nil {
+						logger.Error(err, "failed to delete pod after corrupt image cleanup", "pod", pod.Name)
+					} else {
+						logger.Info("deleted pod after corrupt image cleanup", "pod", pod.Name, "namespace", pod.Namespace)
+					}
+				}
+			}
+			continue
+		}
+
 		res := resolver.Resolve(f.Image)
 
 		var digest string

@@ -85,6 +85,22 @@ func (r *Resolver) ResolveTagViaAgents(ctx context.Context, imageRef string) (st
 	return "", "", nil
 }
 
+// RemoveImageOnNode calls the agent on the given node to remove an image record.
+func (r *Resolver) RemoveImageOnNode(ctx context.Context, nodeName, imageRef string) error {
+	endpoint, err := r.EndpointForNode(ctx, nodeName)
+	if err != nil {
+		return err
+	}
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("connecting to agent: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	_, err = v1.NewToteAgentClient(conn).RemoveImage(ctx, &v1.RemoveImageRequest{ImageRef: imageRef})
+	return err
+}
+
 func resolveTagFromAgent(ctx context.Context, endpoint, imageRef string) (string, error) {
 	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

@@ -2,9 +2,12 @@ package controller
 
 import (
 	"context"
+	"net"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -13,10 +16,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	v1 "github.com/ppiankov/tote/api/v1"
+	"github.com/ppiankov/tote/internal/agent"
 	"github.com/ppiankov/tote/internal/config"
 	"github.com/ppiankov/tote/internal/events"
 	"github.com/ppiankov/tote/internal/inventory"
 	"github.com/ppiankov/tote/internal/metrics"
+	"github.com/ppiankov/tote/internal/session"
+	"github.com/ppiankov/tote/internal/transfer"
 )
 
 const testDigest = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -296,5 +303,122 @@ func TestReconcile_PodNotFound(t *testing.T) {
 	_, err := f.reconciler.Reconcile(context.Background(), reconcileRequest("default", "gone"))
 	if err != nil {
 		t.Fatalf("expected no error for missing pod, got: %v", err)
+	}
+}
+
+func corruptImagePod(ns, name, image, nodeName string) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			Annotations: map[string]string{
+				config.AnnotationPodAutoSalvage: "true",
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:   nodeName,
+			Containers: []corev1.Container{{Name: "app", Image: image}},
+		},
+		Status: corev1.PodStatus{
+			ContainerStatuses: []corev1.ContainerStatus{{
+				Name: "app",
+				State: corev1.ContainerState{
+					Waiting: &corev1.ContainerStateWaiting{
+						Reason:  "CreateContainerError",
+						Message: "failed to create containerd container: failed to resolve rootfs: content digest sha256:b50153e8abcd: not found",
+					},
+				},
+			}},
+		},
+	}
+}
+
+func TestReconcile_CorruptImage_NoAgent(t *testing.T) {
+	pod := corruptImagePod("default", "app", "registry.example.com/app:v1", "node-1")
+	f := setupReconciler(optedInNamespace("default"), pod)
+
+	_, err := f.reconciler.Reconcile(context.Background(), reconcileRequest("default", "app"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Without AgentResolver, no events should be emitted for corrupt image.
+	select {
+	case event := <-f.recorder.Events:
+		t.Errorf("expected no events without agent resolver, got: %s", event)
+	default:
+	}
+}
+
+func TestReconcile_CorruptImage_WithAgent(t *testing.T) {
+	store := agent.NewFakeImageStore()
+	store.AddTag("registry.example.com/app:v1", "sha256:abc")
+
+	sessions := session.NewStore()
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := lis.Addr().(*net.TCPAddr).Port
+
+	srv := grpc.NewServer()
+	v1.RegisterToteAgentServer(srv, agent.NewServer(store, sessions, port))
+	go func() { _ = srv.Serve(lis) }()
+	defer srv.GracefulStop()
+
+	pod := corruptImagePod("default", "app", "registry.example.com/app:v1", "node-1")
+	pod.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: "apps/v1",
+		Kind:       "ReplicaSet",
+		Name:       "app-abc",
+		UID:        "test-uid",
+	}}
+
+	agentPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tote-agent-node1",
+			Namespace: "tote",
+			Labels: map[string]string{
+				"app.kubernetes.io/name":      "tote",
+				"app.kubernetes.io/component": "agent",
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node-1",
+		},
+		Status: corev1.PodStatus{
+			PodIP: "127.0.0.1",
+		},
+	}
+
+	fixture := setupReconciler(optedInNamespace("default"), pod, agentPod)
+	fixture.reconciler.AgentResolver = transfer.NewResolver(fixture.reconciler.Client, "tote", port)
+
+	_, err = fixture.reconciler.Reconcile(context.Background(), reconcileRequest("default", "app"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify corrupt image event was emitted.
+	select {
+	case event := <-fixture.recorder.Events:
+		if !strings.Contains(event, "Corrupt") {
+			t.Errorf("expected corrupt image event, got: %s", event)
+		}
+	default:
+		t.Error("expected a corrupt image event")
+	}
+
+	// Verify image tag was removed from store.
+	digest, _ := store.ResolveTag(context.Background(), "registry.example.com/app:v1")
+	if digest != "" {
+		t.Errorf("expected tag to be removed, but ResolveTag returned %q", digest)
+	}
+
+	// Verify pod was deleted (owned pod).
+	var deletedPod corev1.Pod
+	getErr := fixture.reconciler.Client.Get(context.Background(), types.NamespacedName{Name: "app", Namespace: "default"}, &deletedPod)
+	if getErr == nil {
+		t.Error("expected pod to be deleted after corrupt image cleanup")
 	}
 }

@@ -17,6 +17,9 @@ service ToteAgent {
 
   // Controller -> agent: resolve a tag reference to a digest via containerd.
   rpc ResolveTag(ResolveTagRequest) returns (ResolveTagResponse);
+
+  // Controller -> agent: remove a corrupt image record from containerd.
+  rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse);
 }
 
 message PrepareExportRequest {
@@ -55,3 +58,8 @@ message ResolveTagRequest {
 message ResolveTagResponse {
   string digest = 1;
 }
+
+message RemoveImageRequest {
+  string image_ref = 1;
+}
+message RemoveImageResponse {}
