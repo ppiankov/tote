@@ -14,7 +14,7 @@ rules:
   # SalvageRecords for persistent salvage tracking and idempotency.
   - apiGroups: [tote.dev]
     resources: [salvagerecords, salvagerecords/status]
-    verbs: [get, list, create, update, patch]
+    verbs: [get, list, create, update, patch, delete]
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]
