@@ -78,6 +78,10 @@ pdb:
 networkPolicy:
   enabled: false
 
+# Annotation validation webhook (optional, fail-open).
+webhook:
+  enabled: false
+
 # Agent DaemonSet configuration.
 agent:
   enabled: true
