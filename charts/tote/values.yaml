@@ -70,6 +70,14 @@ tls:
 dashboard:
   enabled: true
 
+# PodDisruptionBudget for the controller.
+pdb:
+  enabled: false
+
+# NetworkPolicy for controller and agents.
+networkPolicy:
+  enabled: false
+
 # Agent DaemonSet configuration.
 agent:
   enabled: true

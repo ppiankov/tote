@@ -1,0 +1,85 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tote.fullname" . }}-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tote.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tote.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controller
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Metrics and health probes.
+    - ports:
+        - port: {{ (split ":" .Values.config.metricsAddr)._1 | default 8080 }}
+          protocol: TCP
+        - port: 8081
+          protocol: TCP
+  egress:
+    # kube-apiserver.
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 6443
+          protocol: TCP
+    # Agent gRPC.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "tote.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: agent
+      ports:
+        - port: {{ .Values.agent.grpcPort }}
+          protocol: TCP
+    # DNS.
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+{{- if .Values.agent.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tote.fullname" . }}-agent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tote.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tote.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: agent
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # gRPC from controller and other agents.
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "tote.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.agent.grpcPort }}
+          protocol: TCP
+  egress:
+    # DNS.
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Backup registry (HTTPS).
+    - ports:
+        - port: 443
+          protocol: TCP
+{{- end }}
+{{- end }}
