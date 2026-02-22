@@ -34,6 +34,8 @@ config:
   enabled: true
   # Bind address for Prometheus metrics endpoint.
   metricsAddr: ":8080"
+  # Output logs in JSON format (default: text/console).
+  jsonLog: false
 
 # Controller salvage settings.
 controller:

@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -73,6 +74,7 @@ func newControllerCmd() *cobra.Command {
 		tlsCert                string
 		tlsKey                 string
 		tlsCA                  string
+		jsonLog                bool
 	)
 
 	cmd := &cobra.Command{
@@ -82,7 +84,7 @@ func newControllerCmd() *cobra.Command {
 			if err := config.ValidateTLSFlags(tlsCert, tlsKey, tlsCA); err != nil {
 				return err
 			}
-			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure, tlsCert, tlsKey, tlsCA)
+			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure, tlsCert, tlsKey, tlsCA, jsonLog)
 		},
 	}
 
@@ -99,6 +101,7 @@ func newControllerCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tlsCert, "tls-cert", "", "path to TLS certificate file (enables mTLS when all three TLS flags are set)")
 	cmd.Flags().StringVar(&tlsKey, "tls-key", "", "path to TLS private key file")
 	cmd.Flags().StringVar(&tlsCA, "tls-ca", "", "path to CA certificate file")
+	cmd.Flags().BoolVar(&jsonLog, "json-log", false, "output logs in JSON format")
 
 	return cmd
 }
@@ -111,6 +114,7 @@ func newAgentCmd() *cobra.Command {
 		tlsCert          string
 		tlsKey           string
 		tlsCA            string
+		jsonLog          bool
 	)
 
 	cmd := &cobra.Command{
@@ -120,7 +124,7 @@ func newAgentCmd() *cobra.Command {
 			if err := config.ValidateTLSFlags(tlsCert, tlsKey, tlsCA); err != nil {
 				return err
 			}
-			return runAgent(containerdSocket, grpcPort, metricsAddr, tlsCert, tlsKey, tlsCA)
+			return runAgent(containerdSocket, grpcPort, metricsAddr, tlsCert, tlsKey, tlsCA, jsonLog)
 		},
 	}
 
@@ -130,12 +134,17 @@ func newAgentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tlsCert, "tls-cert", "", "path to TLS certificate file (enables mTLS when all three TLS flags are set)")
 	cmd.Flags().StringVar(&tlsKey, "tls-key", "", "path to TLS private key file")
 	cmd.Flags().StringVar(&tlsCA, "tls-ca", "", "path to CA certificate file")
+	cmd.Flags().BoolVar(&jsonLog, "json-log", false, "output logs in JSON format")
 
 	return cmd
 }
 
-func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool, tlsCert, tlsKey, tlsCA string) error {
-	ctrl.SetLogger(zap.New())
+func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool, tlsCert, tlsKey, tlsCA string, jsonLog bool) error {
+	if jsonLog {
+		ctrl.SetLogger(zap.New())
+	} else {
+		ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	}
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
@@ -148,11 +157,19 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 		Metrics: metricsserver.Options{
 			BindAddress: metricsAddr,
 		},
-		LeaderElection:   true,
-		LeaderElectionID: "tote-controller",
+		HealthProbeBindAddress: ":8081",
+		LeaderElection:         true,
+		LeaderElectionID:       "tote-controller",
 	})
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		return fmt.Errorf("setting up healthz check: %w", err)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return fmt.Errorf("setting up readyz check: %w", err)
 	}
 
 	cfg := config.New()
@@ -216,8 +233,12 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 	return mgr.Start(ctrl.SetupSignalHandler())
 }
 
-func runAgent(containerdSocket string, grpcPort int, metricsAddr, tlsCert, tlsKey, tlsCA string) error {
-	ctrl.SetLogger(zap.New())
+func runAgent(containerdSocket string, grpcPort int, metricsAddr, tlsCert, tlsKey, tlsCA string, jsonLog bool) error {
+	if jsonLog {
+		ctrl.SetLogger(zap.New())
+	} else {
+		ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	}
 	logger := ctrl.Log.WithName("agent")
 
 	// Hard fail if containerd socket is not accessible.

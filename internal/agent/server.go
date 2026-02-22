@@ -10,6 +10,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	v1 "github.com/ppiankov/tote/api/v1"
 	"github.com/ppiankov/tote/internal/registry"
@@ -50,6 +52,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	srv := grpc.NewServer(opts...)
 	v1.RegisterToteAgentServer(srv, s)
+	healthpb.RegisterHealthServer(srv, health.NewServer())
 
 	go func() {
 		<-ctx.Done()
