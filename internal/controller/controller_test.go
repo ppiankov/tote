@@ -10,6 +10,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +37,8 @@ const testDigest = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca4959
 func newScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	_ = corev1.AddToScheme(s)
+	_ = appsv1.AddToScheme(s)
+	_ = batchv1.AddToScheme(s)
 	_ = v1alpha1.AddToScheme(s)
 	return s
 }
@@ -528,5 +532,136 @@ func TestReconcile_AlreadySalvaged_Skips(t *testing.T) {
 		}
 	default:
 		t.Error("expected a salvageable event")
+	}
+}
+
+func TestReconcile_InheritAnnotationFromReplicaSet(t *testing.T) {
+	pod := failingPod("default", "app", "nginx:latest")
+	delete(pod.Annotations, config.AnnotationPodAutoSalvage)
+	pod.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: "apps/v1",
+		Kind:       "ReplicaSet",
+		Name:       "app-rs",
+		UID:        "rs-uid",
+	}}
+
+	rs := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-rs",
+			Namespace: "default",
+			Annotations: map[string]string{
+				config.AnnotationPodAutoSalvage: "true",
+			},
+		},
+	}
+
+	f := setupReconciler(optedInNamespace("default"), pod, rs)
+
+	_, err := f.reconciler.Reconcile(context.Background(), reconcileRequest("default", "app"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case event := <-f.recorder.Events:
+		if event == "" {
+			t.Error("expected event from inherited annotation")
+		}
+	default:
+		t.Error("expected event when annotation inherited from ReplicaSet")
+	}
+}
+
+func TestReconcile_InheritAnnotationFromDeployment(t *testing.T) {
+	pod := failingPod("default", "app", "nginx:latest")
+	delete(pod.Annotations, config.AnnotationPodAutoSalvage)
+	pod.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: "apps/v1",
+		Kind:       "ReplicaSet",
+		Name:       "app-rs",
+		UID:        "rs-uid",
+	}}
+
+	rs := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-rs",
+			Namespace: "default",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       "app-deploy",
+				UID:        "deploy-uid",
+			}},
+		},
+	}
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-deploy",
+			Namespace: "default",
+			Annotations: map[string]string{
+				config.AnnotationPodAutoSalvage: "true",
+			},
+		},
+	}
+
+	f := setupReconciler(optedInNamespace("default"), pod, rs, deploy)
+
+	_, err := f.reconciler.Reconcile(context.Background(), reconcileRequest("default", "app"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case event := <-f.recorder.Events:
+		if event == "" {
+			t.Error("expected event from inherited annotation")
+		}
+	default:
+		t.Error("expected event when annotation inherited from Deployment via ReplicaSet")
+	}
+}
+
+func TestReconcile_NoAnnotationInOwnerChain(t *testing.T) {
+	pod := failingPod("default", "app", "nginx:latest")
+	delete(pod.Annotations, config.AnnotationPodAutoSalvage)
+	pod.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: "apps/v1",
+		Kind:       "ReplicaSet",
+		Name:       "app-rs",
+		UID:        "rs-uid",
+	}}
+
+	rs := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-rs",
+			Namespace: "default",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       "app-deploy",
+				UID:        "deploy-uid",
+			}},
+		},
+	}
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "app-deploy",
+			Namespace: "default",
+		},
+	}
+
+	f := setupReconciler(optedInNamespace("default"), pod, rs, deploy)
+
+	_, err := f.reconciler.Reconcile(context.Background(), reconcileRequest("default", "app"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	select {
+	case event := <-f.recorder.Events:
+		t.Errorf("expected no events without annotation in chain, got: %s", event)
+	default:
 	}
 }

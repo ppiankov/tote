@@ -1,7 +1,7 @@
 CLAUDE.local.md
 bin/
 dist/
-tote
+/tote
 *.exe
 
 # Claude Code
