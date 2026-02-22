@@ -54,10 +54,28 @@ spec:
             - --tls-key=/etc/tote/tls/tls.key
             - --tls-ca=/etc/tote/tls/ca.crt
             {{- end }}
+            {{- if .Values.config.jsonLog }}
+            - --json-log=true
+            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ (split ":" .Values.config.metricsAddr)._1 | default 8080 }}
               protocol: TCP
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
           {{- if .Values.tls.enabled }}
           volumeMounts:
             - name: tls-certs
