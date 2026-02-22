@@ -19,6 +19,7 @@ import (
 	v1alpha1 "github.com/ppiankov/tote/api/v1alpha1"
 	"github.com/ppiankov/tote/internal/events"
 	"github.com/ppiankov/tote/internal/metrics"
+	"github.com/ppiankov/tote/internal/notify"
 	"github.com/ppiankov/tote/internal/registry"
 	"github.com/ppiankov/tote/internal/session"
 )
@@ -41,6 +42,7 @@ type Orchestrator struct {
 	SecretNamespace        string
 
 	TransportCreds credentials.TransportCredentials // nil = insecure
+	Notifier       *notify.Notifier
 }
 
 // NewOrchestrator creates an Orchestrator with the given dependencies.
@@ -131,6 +133,16 @@ func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, ima
 	o.Metrics.RecordSalvageSuccess()
 	o.Metrics.RecordSalvageDuration(time.Since(start))
 	o.Emitter.EmitSalvaged(pod, digest, sourceNode, targetNode)
+	if o.Notifier != nil {
+		_ = o.Notifier.Notify(ctx, notify.Event{
+			Type:       "salvaged",
+			PodName:    pod.Name,
+			Namespace:  pod.Namespace,
+			Digest:     digest,
+			SourceNode: sourceNode,
+			TargetNode: targetNode,
+		})
+	}
 	logger.Info("salvage complete", "digest", digest, "source", sourceNode, "target", targetNode)
 
 	// Record the salvage as a CRD for persistent history.
@@ -166,6 +178,15 @@ func (o *Orchestrator) dialOption() grpc.DialOption {
 func (o *Orchestrator) fail(pod *corev1.Pod, digest, reason string) {
 	o.Metrics.RecordSalvageFailure()
 	o.Emitter.EmitSalvageFailed(pod, digest, reason)
+	if o.Notifier != nil {
+		_ = o.Notifier.Notify(context.Background(), notify.Event{
+			Type:      "salvage_failed",
+			PodName:   pod.Name,
+			Namespace: pod.Namespace,
+			Digest:    digest,
+			Error:     reason,
+		})
+	}
 }
 
 func (o *Orchestrator) prepareExport(ctx context.Context, endpoint, token, digest string) (int64, error) {
@@ -272,6 +293,14 @@ func (o *Orchestrator) pushToBackupRegistry(ctx context.Context, pod *corev1.Pod
 	o.Metrics.RecordPushSuccess()
 	o.Metrics.RecordPushDuration(time.Since(pushStart))
 	o.Emitter.EmitPushed(pod, digest, targetRef, sourceNode)
+	if o.Notifier != nil {
+		_ = o.Notifier.Notify(ctx, notify.Event{
+			Type:      "pushed",
+			PodName:   pod.Name,
+			Namespace: pod.Namespace,
+			Digest:    digest,
+		})
+	}
 	logger.Info("pushed to backup registry", "digest", digest, "target", targetRef, "source", sourceNode)
 }
 

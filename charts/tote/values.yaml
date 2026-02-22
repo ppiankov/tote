@@ -48,6 +48,15 @@ controller:
   backupRegistrySecret: ""
   # Allow HTTP connections to backup registry.
   backupRegistryInsecure: false
+  # TTL for completed SalvageRecords (Go duration).
+  salvageRecordTTL: "168h"
+
+# Webhook notifications.
+notifications:
+  # URL to POST event payloads to (empty = disabled).
+  webhookUrl: ""
+  # Comma-separated event types: detected, salvaged, salvage_failed, pushed, push_failed.
+  events: ""
 
 # mTLS for gRPC communication between controller and agents.
 # Requires a Kubernetes TLS Secret with ca.crt, tls.crt, tls.key.

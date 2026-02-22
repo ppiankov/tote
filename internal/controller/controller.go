@@ -20,6 +20,7 @@ import (
 	"github.com/ppiankov/tote/internal/events"
 	"github.com/ppiankov/tote/internal/inventory"
 	"github.com/ppiankov/tote/internal/metrics"
+	"github.com/ppiankov/tote/internal/notify"
 	"github.com/ppiankov/tote/internal/resolver"
 	"github.com/ppiankov/tote/internal/transfer"
 )
@@ -33,6 +34,7 @@ type PodReconciler struct {
 	Metrics       *metrics.Counters
 	Orchestrator  *transfer.Orchestrator
 	AgentResolver *transfer.Resolver
+	Notifier      *notify.Notifier
 }
 
 // Reconcile handles a single Pod reconciliation.
@@ -67,6 +69,14 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 
 	for _, f := range failures {
 		r.Metrics.RecordDetected()
+		if r.Notifier != nil {
+			_ = r.Notifier.Notify(ctx, notify.Event{
+				Type:      "detected",
+				PodName:   pod.Name,
+				Namespace: pod.Namespace,
+				ImageRef:  f.Image,
+			})
+		}
 
 		// Corrupt image: record exists but content blobs are missing.
 		// Remove the stale record and restart the pod for a clean pull.

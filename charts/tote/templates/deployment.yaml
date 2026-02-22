@@ -57,6 +57,13 @@ spec:
             {{- if .Values.config.jsonLog }}
             - --json-log=true
             {{- end }}
+            - --salvagerecord-ttl={{ .Values.controller.salvageRecordTTL }}
+            {{- if .Values.notifications.webhookUrl }}
+            - --webhook-url={{ .Values.notifications.webhookUrl }}
+            {{- end }}
+            {{- if .Values.notifications.events }}
+            - --webhook-events={{ .Values.notifications.events }}
+            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ (split ":" .Values.config.metricsAddr)._1 | default 8080 }}
