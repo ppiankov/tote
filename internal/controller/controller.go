@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -158,6 +160,9 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 				}
 				if err := r.Orchestrator.Salvage(ctx, &pod, digest, f.Image, sourceNode); err != nil {
 					logger.Error(err, "salvage failed", "digest", digest)
+					if isTransientError(err) {
+						return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
+					}
 				}
 			}
 		}
@@ -168,6 +173,12 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 
 // SetupWithManager registers the reconciler with the controller manager.
 func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	ctx := context.Background()
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.SalvageRecord{}, "spec.digest", func(obj client.Object) []string {
+		return []string{obj.(*v1alpha1.SalvageRecord).Spec.Digest}
+	}); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}).
 		Complete(r)
@@ -182,16 +193,27 @@ func namespaceOptedIn(ctx context.Context, c client.Reader, namespace string) bo
 }
 
 // hasSalvageRecord checks whether a completed SalvageRecord exists for the
-// given digest in the namespace. Used as an idempotency guard.
+// given digest in the namespace. Uses a field index for efficient lookup.
 func hasSalvageRecord(ctx context.Context, c client.Reader, namespace, digest string) bool {
 	var list v1alpha1.SalvageRecordList
-	if err := c.List(ctx, &list, client.InNamespace(namespace)); err != nil {
+	if err := c.List(ctx, &list, client.InNamespace(namespace), client.MatchingFields{"spec.digest": digest}); err != nil {
 		return false
 	}
 	for i := range list.Items {
-		if list.Items[i].Spec.Digest == digest && list.Items[i].Status.Phase == "Completed" {
+		if list.Items[i].Status.Phase == "Completed" {
 			return true
 		}
 	}
 	return false
+}
+
+// isTransientError returns true for errors that may resolve on retry
+// (rate limits, network issues). Permanent errors (image too large,
+// no source node) should not trigger a requeue.
+func isTransientError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "rate limited") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "connecting to") ||
+		strings.Contains(msg, "Unavailable")
 }
