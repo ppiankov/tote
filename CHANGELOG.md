@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-22
+
+### Added
+
+- Inherit `tote.dev/auto-salvage` annotation from owner chain: Deployment, StatefulSet, DaemonSet, ReplicaSet, Job (WO-12)
+- Webhook notifications via `--webhook-url` and `--webhook-events` (WO-13)
+- SalvageRecord TTL cleanup via `--salvagerecord-ttl` (WO-15)
+- Health probes: HTTP `/healthz` and `/readyz` on controller, gRPC health service on agent (WO-16)
+- PodDisruptionBudget and NetworkPolicy Helm templates (WO-17)
+- Salvage and push duration histograms: `tote_salvage_duration_seconds`, `tote_push_duration_seconds` (WO-18)
+- JSON logging via `--json-log` flag (WO-19)
+- Annotation validation webhook (fail-open, `webhook.enabled: false`) (WO-23)
+- E2E test framework with kind (`make e2e`) (WO-24)
+- Helm chart lint (`make helm-lint`) with 5 value combinations (WO-25)
+- Agent pod-level seccomp profile `RuntimeDefault` (WO-22)
+- New packages: `internal/cleanup`, `internal/notify`, `internal/webhook`
+
+### Changed
+
+- Reconcile requeues with 30s backoff on transient salvage failures (WO-20)
+- SalvageRecord idempotency uses field index on `spec.digest` for O(1) lookup (WO-21)
+- RBAC: added `apps/v1` and `batch/v1` `get` for owner inheritance, `delete` for salvagerecord cleanup
+
 ## [0.4.0] - 2026-02-22
 
 ### Added
@@ -97,7 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-deny for critical namespaces: `kube-system`, `kube-public`, `kube-node-lease`
 - CLI flags: `--enabled`, `--metrics-addr`, `--version`
 
-[Unreleased]: https://github.com/ppiankov/tote/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/ppiankov/tote/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ppiankov/tote/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ppiankov/tote/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ppiankov/tote/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ppiankov/tote/releases/tag/v0.2.0

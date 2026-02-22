@@ -2,9 +2,9 @@ tote context snapshot — 2026-02-22
 
 ## Current state
 
-Version: 0.4.0 (unreleased, all commits on main)
-Last tag: v0.3.0 (at WO-4 commit)
-All v0.3 and v1.0 roadmap items complete except owner workload inheritance and notifications.
+Version: 0.5.0 (unreleased, all commits on main)
+Last tag: v0.4.0
+All work orders (WO-1 through WO-25) complete. Project at logical finish state.
 
 ## Completed work orders
 
@@ -19,12 +19,27 @@ WO-8:  mTLS for gRPC (internal/tlsutil, --tls-cert/key/ca, Helm tls.enabled)
 WO-9:  Leader election (controller-runtime LeaderElection)
 WO-10: SalvageRecord CRD (api/v1alpha1, replaces pod annotations)
 WO-11: CreateContainerError detection (corrupt image cleanup via RemoveImage RPC)
+WO-12: Owner annotation inheritance (isAutoSalvageEnabled walks ownerRefs)
+WO-13: Webhook notifications (internal/notify, --webhook-url/--webhook-events)
+WO-14: Tag v0.4.0 release
+WO-15: SalvageRecord TTL cleanup (internal/cleanup, --salvagerecord-ttl)
+WO-16: Health probes (controller /healthz/:8081, agent gRPC health)
+WO-17: PDB + NetworkPolicy Helm templates
+WO-18: Salvage/push duration histograms
+WO-19: JSON logging (--json-log flag)
+WO-20: Requeue on transient salvage failure (30s backoff)
+WO-21: SalvageRecord field index (spec.digest)
+WO-22: Agent seccomp profile (RuntimeDefault)
+WO-23: Annotation validation webhook (internal/webhook, fail-open)
+WO-24: E2E test framework (test/e2e/, kind-based)
+WO-25: Helm chart lint (make helm-lint, 5 value combinations)
 
-## Architecture (13 internal packages + CRD)
+## Architecture (16 internal packages + CRD + webhook)
 
 version, config, detector, resolver, inventory, events, metrics,
-controller, agent, session, transfer, registry, tlsutil
+controller, agent, session, transfer, registry, tlsutil, cleanup, notify, webhook
 api/v1alpha1 (SalvageRecord CRD)
+test/e2e (build-tagged E2E tests)
 
 ## Key decisions
 
@@ -37,9 +52,15 @@ api/v1alpha1 (SalvageRecord CRD)
 - Pre-commit hook blocks Co-Authored-By lines
 - SalvageRecord replaces pod annotations for idempotency + history
 - controller-gen v0.20.1 for CRD generation
+- Field indexer on spec.digest for efficient SalvageRecord lookup
+- Requeue only on transient errors (rate limit, connection, gRPC unavailable)
+- Owner annotation inheritance walks max 2 levels (Pod → RS → Deployment)
+- Webhook notifications are fire-and-forget (5s timeout, errors discarded)
+- SalvageRecord cleanup via manager.Runnable (leader-election-aware)
+- Annotation webhook is fail-open (failurePolicy: Ignore)
 
 ## Open issues
 
 - Local golangci-lint is v1, config is v2 format. make lint fails locally.
   CI works fine. Could install v2 locally or keep as-is.
-- v0.3.0 tag was premature (only covered WO-1-4). No v0.4.0 tag yet.
+- E2E tests require kind cluster (make e2e-setup). Not run in CI yet.

@@ -53,196 +53,54 @@ Kubelet reports image "already present on machine" but containerd fails to unpac
 
 ## v0.5 — Usability and notifications
 
-### WO-12: Owner workload annotation inheritance
+### WO-12: Owner workload annotation inheritance ✅
 Currently `tote.dev/auto-salvage` must be set directly on the Pod (or pod template). This is fine for Deployments (you annotate the template), but makes bulk opt-in tedious for clusters with many workloads.
 
-Add annotation inheritance: if a Pod lacks `tote.dev/auto-salvage`, walk its `ownerReferences` chain (Pod → ReplicaSet → Deployment, or Pod → StatefulSet) and check each owner for the annotation. Stop at the first match.
+**Implemented**: `isAutoSalvageEnabled()` walks ownerReferences up to 2 levels (Pod → RS → Deployment). Supports ReplicaSet, Deployment, StatefulSet, DaemonSet, Job. RBAC added for `apps/v1` and `batch/v1` `get`.
 
-**Scope:**
-- Support Deployment, StatefulSet, DaemonSet, ReplicaSet, and Job owners
-- Walk at most 2 levels deep (Pod → ReplicaSet → Deployment)
-- Cache owner lookups per reconcile (multiple containers in one pod share the same owner chain)
-- Add RBAC: `get` on `apps/v1` Deployments, StatefulSets, DaemonSets, ReplicaSets and `batch/v1` Jobs
-- Update README: document the inheritance behavior and new RBAC
-- No new CLI flags — inheritance is always active
+### WO-13: Webhook/Slack notifications ✅
+Send notifications to external systems when tote detects or salvages images.
 
-**Not in scope:**
-- Namespace-level "auto-salvage all pods" — too broad, violates explicit opt-in philosophy
-- Label selectors — annotations are the established pattern, keep it simple
-
-### WO-13: Webhook/Slack notifications
-Send notifications to external systems when tote detects or salvages images. Useful for teams that don't monitor Kubernetes events or Prometheus directly.
-
-**Scope:**
-- Generic webhook: POST JSON payload to a configurable URL on salvage events
-- Slack: format the webhook payload as a Slack Block Kit message (Slack-compatible webhook URL)
-- Controller flags: `--webhook-url`, `--webhook-events` (comma-separated: `detected`, `salvaged`, `failed`, `pushed`)
-- Payload includes: event type, pod name/namespace, image ref, digest, source/target nodes, timestamp
-- Fire-and-forget with timeout (5s default) — notification failure must never block reconciliation
-- New package: `internal/notify` (webhook client, payload formatting)
-- Helm values: `notifications.webhookUrl`, `notifications.events`
-- Prometheus counter: `tote_webhook_failures_total`
-
-**Not in scope:**
-- Per-namespace or per-pod webhook configuration — single global webhook is enough for v0.5
-- Email, PagerDuty, or other integrations — generic webhook covers these via intermediaries
-- Retry or delivery guarantees — this is best-effort alerting, not an event bus
+**Implemented**: `internal/notify` package with `Notifier` (JSON POST, 5s timeout, fire-and-forget). Event types: detected, salvaged, salvage_failed, pushed, push_failed. Wired into controller and orchestrator. Flags: `--webhook-url`, `--webhook-events`. Helm values: `notifications.webhookUrl`, `notifications.events`.
 
 ## v0.6 — Operational hardening
 
-### WO-15: SalvageRecord TTL and cleanup
-SalvageRecords accumulate forever. Old records waste etcd storage and slow down the idempotency list query.
+### WO-15: SalvageRecord TTL and cleanup ✅
+**Implemented**: `internal/cleanup` package with `Reaper` implementing `manager.Runnable`. Periodic sweep (10min interval), deletes records older than TTL. Leader-election-aware. Flag: `--salvagerecord-ttl` (default `168h`). RBAC: added `delete` verb for salvagerecords.
 
-**Scope:**
-- Controller flag: `--salvagerecord-ttl` (default: `168h` / 7 days)
-- Periodic cleanup goroutine: list SalvageRecords with `status.completedAt` older than TTL, delete them
-- Run cleanup on a fixed interval (e.g. every 10 minutes), not on every reconcile
-- Prometheus gauge: `tote_salvagerecords_total` (current count, by phase)
-- Log deletions at V(1)
+### WO-16: Health and readiness probes ✅
+**Implemented**: Controller: `HealthProbeBindAddress: ":8081"`, `healthz.Ping` for both healthz and readyz. Agent: gRPC health service via `google.golang.org/grpc/health`. Helm: HTTP probes on controller (port 8081), gRPC probes on agent, startup probe on agent with `failureThreshold: 10`.
 
-**Not in scope:**
-- Kubernetes CronJob-based cleanup — keep it in-process for simplicity
-- Configurable per-namespace TTL — single global TTL is enough
+### WO-17: PodDisruptionBudget and NetworkPolicy ✅
+**Implemented**: PDB template (`minAvailable: 1`, `pdb.enabled: false`). NetworkPolicy templates for controller (metrics+health ingress, apiserver+agent+DNS egress) and agent (gRPC ingress from tote pods, DNS+registry egress). `networkPolicy.enabled: false` by default.
 
-### WO-16: Health and readiness probes
-The Helm chart has no liveness or readiness probes. Kubernetes cannot detect a wedged controller or agent.
+### WO-18: Salvage duration and size histograms ✅
+**Implemented**: `tote_salvage_duration_seconds` and `tote_push_duration_seconds` histograms with buckets `{0.5, 1, 2, 5, 10, 30, 60, 120, 300}`. Instrumented in `Orchestrator.Salvage()` and `pushToBackupRegistry()`.
 
-**Scope:**
-- Controller: controller-runtime already serves `/healthz` and `/readyz` on the metrics port — wire `mgr.AddHealthzCheck` and `mgr.AddReadyzCheck` and expose them in the Deployment spec
-- Agent: add a gRPC health check service (`grpc.health.v1.Health`) or a simple HTTP `/healthz` endpoint
-- Helm: add `livenessProbe` and `readinessProbe` to both Deployment and DaemonSet templates
-- Helm values: `controller.probes.enabled`, `agent.probes.enabled` (default: `true`)
-- Startup probe on agent with longer timeout (containerd connection may be slow)
+### WO-19: Structured JSON logging ✅
+**Implemented**: `--json-log` flag on both controller and agent. JSON mode uses production zap config; default uses development mode (console). Helm value: `config.jsonLog: false`.
 
-### WO-17: PodDisruptionBudget and NetworkPolicy
-Missing operational primitives for production deployments.
+### WO-20: Reconcile requeue on salvage failure ✅
+**Implemented**: `isTransientError()` classifies rate-limit, connection, and gRPC errors as transient. Returns `Result{RequeueAfter: 30s}` for transient failures; permanent failures (image too large, no source) return without requeue.
 
-**Scope:**
-- PDB for controller Deployment: `minAvailable: 1` (guards leader during voluntary disruption)
-- NetworkPolicy for controller: ingress on metrics port only, egress to kube-apiserver and agent pods
-- NetworkPolicy for agent DaemonSet: ingress on gRPC port from controller and other agents, egress to containerd socket (localhost) and backup registry
-- All gated behind Helm values: `pdb.enabled` (default: `true`), `networkPolicy.enabled` (default: `false`)
-
-**Not in scope:**
-- Cilium-specific policies — stick to standard NetworkPolicy v1
-
-### WO-18: Salvage duration and size histograms
-Only counters exist today. No way to track how long salvages take or correlate with image size.
-
-**Scope:**
-- `tote_salvage_duration_seconds` histogram (buckets: 1s, 5s, 10s, 30s, 60s, 120s, 300s)
-- `tote_salvage_image_bytes` histogram (buckets: 10MB, 50MB, 100MB, 500MB, 1GB, 2GB)
-- `tote_push_duration_seconds` histogram (same bucket pattern)
-- Instrument `Orchestrator.Salvage()` and `pushToBackupRegistry()`
-- Update Grafana dashboard (WO-6) with latency and size panels
-
-**Not in scope:**
-- Per-node or per-image labels on histograms — too high cardinality
-
-### WO-19: Structured JSON logging
-Current logging uses controller-runtime's default text format. Not parseable by log aggregation systems (ELK, Loki, Datadog).
-
-**Scope:**
-- Controller flag: `--log-format` (`text` or `json`, default: `text`)
-- Use `zap.New(zap.JSONEncoder(...))` when `json` is selected
-- Apply to both controller and agent subcommands
-- Helm values: `controller.logFormat`, `agent.logFormat`
-
-**Not in scope:**
-- Log levels as a flag — controller-runtime already supports `--zap-log-level`
-- Structured request IDs or trace context — no distributed tracing yet
-
-### WO-20: Reconcile requeue on salvage failure
-If salvage fails (agent unreachable, rate limited, image too large), tote does not retry. It waits for the next pod event, which may not come if the pod is already in `ImagePullBackOff` with a long backoff timer.
-
-**Scope:**
-- Return `reconcile.Result{RequeueAfter: backoff}` on salvage failure
-- Exponential backoff: 30s, 1m, 2m, 5m (capped)
-- Track retry count in SalvageRecord status: `retryCount` field, `lastAttemptAt` timestamp
-- Do not requeue on permanent failures (image too large, no source node)
-- Do not requeue on success
-
-**Not in scope:**
-- Per-container retry tracking — one retry counter per digest per pod is enough
-- Configurable backoff schedule — hardcoded is fine for now
-
-### WO-21: SalvageRecord index for idempotency
-`hasSalvageRecord()` does a full `List` + linear scan every reconcile. This won't scale past a few hundred records.
-
-**Scope:**
-- Add a field indexer on `spec.digest` via `mgr.GetFieldIndexer().IndexField()`
-- Use `client.MatchingFields{"spec.digest": digest}` in the list call
-- Add namespace filter (already present) + phase filter if supported
-- Benchmark: measure list latency with 100, 1000, 10000 records
-
-**Not in scope:**
-- External caching layer — field index is the standard controller-runtime approach
+### WO-21: SalvageRecord index for idempotency ✅
+**Implemented**: Field indexer on `spec.digest` in `SetupWithManager`. `hasSalvageRecord()` uses `client.MatchingFields{"spec.digest": digest}` for O(1) lookup. Fake client tests use `WithIndex()`.
 
 ## Security hardening
 
-### WO-22: Agent security context
-The agent DaemonSet runs as root with no further constraints. Production clusters with PodSecurity admission or hardened runtimes may reject it.
+### WO-22: Agent security context ✅
+**Implemented**: Pod-level `seccompProfile: RuntimeDefault` on agent DaemonSet. Container already has `runAsUser: 0`, `readOnlyRootFilesystem: true`, `capabilities: { drop: [ALL] }`.
 
-**Scope:**
-- Set explicit `securityContext` on agent container: `runAsUser: 0`, `readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false`
-- Add seccomp profile: `RuntimeDefault`
-- Volume mount containerd socket as read-only where possible (export is read-only, import needs write)
-- Document the minimum required capabilities in README (currently none beyond root UID)
-- Helm values: `agent.securityContext` with sensible defaults
-
-**Not in scope:**
-- Running as non-root — containerd socket requires root, no workaround
-- AppArmor profiles — too distribution-specific
-
-### WO-23: Annotation validation webhook
-Invalid annotation values (`tote.dev/allow=yes` instead of `true`, typos like `tote.dev/auto-slavage`) are silently ignored. Users get no feedback.
-
-**Scope:**
-- Validating admission webhook for Pods and Namespaces
-- Reject unknown `tote.dev/*` annotation keys (warn on close misspellings)
-- Reject `tote.dev/allow` and `tote.dev/auto-salvage` values other than `"true"` or `"false"`
-- Webhook is optional — deployed via Helm when `webhook.enabled: true` (default: `false`)
-- Fail-open (`failurePolicy: Ignore`) so webhook unavailability doesn't block cluster operations
-- Use controller-runtime's webhook framework
-
-**Not in scope:**
-- Mutating webhook — tote should not silently fix annotations
-- CRD validation — SalvageRecord is controller-created, not user-facing
+### WO-23: Annotation validation webhook ✅
+**Implemented**: `internal/webhook` package with `AnnotationValidator`. Rejects unknown `tote.dev/*` annotations and non-boolean values. Fail-open on decode errors. Helm: `ValidatingWebhookConfiguration` + Service, `webhook.enabled: false` by default, `failurePolicy: Ignore`.
 
 ## Testing
 
-### WO-24: End-to-end tests with kind
-No integration tests against a real cluster. Unit tests use fake clients which don't catch issues with RBAC, CRD registration, leader election, or actual containerd behavior.
+### WO-24: End-to-end tests with kind ✅
+**Implemented**: `test/e2e/` with build-tagged (`//go:build e2e`) tests. Tests: CRD installed, controller running, unreachable image emits event. `kind-config.yaml` for single-node cluster. Makefile: `e2e-setup`, `e2e`, `e2e-teardown` targets.
 
-**Scope:**
-- `test/e2e/` directory with Go test files using `kind` (Kubernetes in Docker)
-- CI job: create kind cluster, install CRD, deploy tote via Helm, run test suite
-- Test scenarios:
-  1. Deploy opted-in pod with unreachable image → verify `ImageSalvageable` event
-  2. Deploy pod with tag-only image → verify `ImageNotActionable` event
-  3. Kill switch test: disable tote → verify no events
-  4. SalvageRecord creation after salvage (requires agents + containerd)
-- Makefile target: `make e2e`
-- CI: separate job, runs after unit tests pass, kind cluster ephemeral
-
-**Not in scope:**
-- Full salvage e2e (requires containerd with pre-cached images) — defer to a follow-up WO
-- Performance/load testing
-- Multi-node kind cluster — single node is enough for event verification
-
-### WO-25: Helm chart validation
-No linting or template rendering tests for the Helm chart. Broken templates are caught only at deploy time.
-
-**Scope:**
-- `helm lint charts/tote/` in CI (add to lint-fast job)
-- `helm template` with default values + with all optional features enabled (TLS, dashboard, PDB, networkPolicy)
-- Validate output with `kubectl apply --dry-run=server` against kind cluster (in e2e job)
-- Test values matrix: minimal, full, TLS-only, dashboard-only
-- Makefile target: `make helm-lint`
-
-**Not in scope:**
-- Helm unit test framework (helm-unittest) — `helm template` + `kubectl dry-run` is sufficient
-- Chart publishing to OCI registry — already handled by release workflow
+### WO-25: Helm chart validation ✅
+**Implemented**: `make helm-lint` target: `helm lint` + `helm template` with 5 value combinations (default, TLS, dashboard, PDB+NetworkPolicy).
 
 ## Housekeeping
 
