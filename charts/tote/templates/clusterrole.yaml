@@ -18,6 +18,13 @@ rules:
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]
+  # Read owner workloads for annotation inheritance.
+  - apiGroups: [apps]
+    resources: [replicasets, deployments, statefulsets, daemonsets]
+    verbs: [get]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get]
   # Read namespaces to check opt-in annotations.
   - apiGroups: [""]
     resources: [namespaces]
