@@ -1,0 +1,23 @@
+{{- if .Values.webhook.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "tote.fullname" . }}
+  labels:
+    {{- include "tote.labels" . | nindent 4 }}
+webhooks:
+  - name: validate.tote.dev
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: Ignore
+    clientConfig:
+      service:
+        name: {{ include "tote.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validate-annotations
+    rules:
+      - operations: [CREATE, UPDATE]
+        apiGroups: [""]
+        apiVersions: [v1]
+        resources: [pods, namespaces]
+{{- end }}
