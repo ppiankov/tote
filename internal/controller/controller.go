@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -54,7 +56,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		return reconcile.Result{}, nil
 	}
 
-	if pod.Annotations[config.AnnotationPodAutoSalvage] != "true" {
+	if !isAutoSalvageEnabled(ctx, r.Client, &pod) {
 		return reconcile.Result{}, nil
 	}
 
@@ -190,6 +192,64 @@ func namespaceOptedIn(ctx context.Context, c client.Reader, namespace string) bo
 		return false
 	}
 	return ns.Annotations[config.AnnotationNamespaceAllow] == "true"
+}
+
+// isAutoSalvageEnabled checks whether the pod or any owner in its chain has
+// the auto-salvage annotation. Walks ownerReferences up to 2 levels
+// (Pod → ReplicaSet → Deployment).
+func isAutoSalvageEnabled(ctx context.Context, c client.Reader, pod *corev1.Pod) bool {
+	if pod.Annotations[config.AnnotationPodAutoSalvage] == "true" {
+		return true
+	}
+	for _, ref := range pod.OwnerReferences {
+		key := types.NamespacedName{Namespace: pod.Namespace, Name: ref.Name}
+		switch ref.Kind {
+		case "ReplicaSet":
+			var rs appsv1.ReplicaSet
+			if err := c.Get(ctx, key, &rs); err != nil {
+				continue
+			}
+			if rs.Annotations[config.AnnotationPodAutoSalvage] == "true" {
+				return true
+			}
+			for _, parent := range rs.OwnerReferences {
+				if parent.Kind == "Deployment" {
+					var dep appsv1.Deployment
+					if err := c.Get(ctx, types.NamespacedName{Namespace: pod.Namespace, Name: parent.Name}, &dep); err != nil {
+						continue
+					}
+					if dep.Annotations[config.AnnotationPodAutoSalvage] == "true" {
+						return true
+					}
+				}
+			}
+		case "StatefulSet":
+			var ss appsv1.StatefulSet
+			if err := c.Get(ctx, key, &ss); err != nil {
+				continue
+			}
+			if ss.Annotations[config.AnnotationPodAutoSalvage] == "true" {
+				return true
+			}
+		case "DaemonSet":
+			var ds appsv1.DaemonSet
+			if err := c.Get(ctx, key, &ds); err != nil {
+				continue
+			}
+			if ds.Annotations[config.AnnotationPodAutoSalvage] == "true" {
+				return true
+			}
+		case "Job":
+			var job batchv1.Job
+			if err := c.Get(ctx, key, &job); err != nil {
+				continue
+			}
+			if job.Annotations[config.AnnotationPodAutoSalvage] == "true" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // hasSalvageRecord checks whether a completed SalvageRecord exists for the

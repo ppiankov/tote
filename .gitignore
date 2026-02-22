@@ -1,5 +1,5 @@
 bin/
 dist/
-tote
+/tote
 *.exe
 
