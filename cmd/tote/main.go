@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -19,11 +20,13 @@ import (
 
 	v1alpha1 "github.com/ppiankov/tote/api/v1alpha1"
 	"github.com/ppiankov/tote/internal/agent"
+	"github.com/ppiankov/tote/internal/cleanup"
 	"github.com/ppiankov/tote/internal/config"
 	"github.com/ppiankov/tote/internal/controller"
 	"github.com/ppiankov/tote/internal/events"
 	"github.com/ppiankov/tote/internal/inventory"
 	"github.com/ppiankov/tote/internal/metrics"
+	"github.com/ppiankov/tote/internal/notify"
 	"github.com/ppiankov/tote/internal/session"
 	"github.com/ppiankov/tote/internal/tlsutil"
 	"github.com/ppiankov/tote/internal/transfer"
@@ -75,6 +78,9 @@ func newControllerCmd() *cobra.Command {
 		tlsKey                 string
 		tlsCA                  string
 		jsonLog                bool
+		salvageRecordTTL       string
+		webhookURL             string
+		webhookEvents          string
 	)
 
 	cmd := &cobra.Command{
@@ -84,7 +90,7 @@ func newControllerCmd() *cobra.Command {
 			if err := config.ValidateTLSFlags(tlsCert, tlsKey, tlsCA); err != nil {
 				return err
 			}
-			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure, tlsCert, tlsKey, tlsCA, jsonLog)
+			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure, tlsCert, tlsKey, tlsCA, jsonLog, salvageRecordTTL, webhookURL, webhookEvents)
 		},
 	}
 
@@ -102,6 +108,9 @@ func newControllerCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tlsKey, "tls-key", "", "path to TLS private key file")
 	cmd.Flags().StringVar(&tlsCA, "tls-ca", "", "path to CA certificate file")
 	cmd.Flags().BoolVar(&jsonLog, "json-log", false, "output logs in JSON format")
+	cmd.Flags().StringVar(&salvageRecordTTL, "salvagerecord-ttl", "168h", "time-to-live for completed SalvageRecords")
+	cmd.Flags().StringVar(&webhookURL, "webhook-url", "", "URL for webhook notifications (empty = disabled)")
+	cmd.Flags().StringVar(&webhookEvents, "webhook-events", "", "comma-separated event types to send (empty = all)")
 
 	return cmd
 }
@@ -139,7 +148,7 @@ func newAgentCmd() *cobra.Command {
 	return cmd
 }
 
-func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool, tlsCert, tlsKey, tlsCA string, jsonLog bool) error {
+func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool, tlsCert, tlsKey, tlsCA string, jsonLog bool, salvageRecordTTLStr, webhookURL, webhookEvents string) error {
 	if jsonLog {
 		ctrl.SetLogger(zap.New())
 	} else {
@@ -226,8 +235,31 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 		reconciler.Orchestrator = orch
 	}
 
+	// Webhook notifier (optional).
+	if webhookURL != "" {
+		var evtTypes []string
+		if webhookEvents != "" {
+			evtTypes = strings.Split(webhookEvents, ",")
+		}
+		notifier := notify.NewNotifier(webhookURL, evtTypes)
+		reconciler.Notifier = notifier
+		if reconciler.Orchestrator != nil {
+			reconciler.Orchestrator.Notifier = notifier
+		}
+	}
+
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("setting up controller: %w", err)
+	}
+
+	// SalvageRecord TTL cleanup.
+	recordTTL, err := time.ParseDuration(salvageRecordTTLStr)
+	if err != nil {
+		return fmt.Errorf("invalid salvagerecord-ttl: %w", err)
+	}
+	reaper := cleanup.NewReaper(mgr.GetClient(), recordTTL, 10*time.Minute)
+	if err := mgr.Add(reaper); err != nil {
+		return fmt.Errorf("adding cleanup reaper: %w", err)
 	}
 
 	return mgr.Start(ctrl.SetupSignalHandler())
