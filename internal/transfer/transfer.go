@@ -79,6 +79,7 @@ func (o *Orchestrator) SetBackupRegistry(reg, secret, namespace string, insec bo
 func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, imageRef, sourceNode string) error {
 	logger := log.FromContext(ctx)
 	o.Metrics.RecordSalvageAttempt()
+	start := time.Now()
 
 	targetNode := pod.Spec.NodeName
 
@@ -128,6 +129,7 @@ func (o *Orchestrator) Salvage(ctx context.Context, pod *corev1.Pod, digest, ima
 	}
 
 	o.Metrics.RecordSalvageSuccess()
+	o.Metrics.RecordSalvageDuration(time.Since(start))
 	o.Emitter.EmitSalvaged(pod, digest, sourceNode, targetNode)
 	logger.Info("salvage complete", "digest", digest, "source", sourceNode, "target", targetNode)
 
@@ -242,6 +244,7 @@ func (o *Orchestrator) createSalvageRecord(ctx context.Context, pod *corev1.Pod,
 
 func (o *Orchestrator) pushToBackupRegistry(ctx context.Context, pod *corev1.Pod, digest, imageRef, sourceEndpoint, sourceNode string) {
 	logger := log.FromContext(ctx)
+	pushStart := time.Now()
 
 	targetRef, err := registry.BackupRef(imageRef, o.BackupRegistry)
 	if err != nil {
@@ -267,6 +270,7 @@ func (o *Orchestrator) pushToBackupRegistry(ctx context.Context, pod *corev1.Pod
 	}
 
 	o.Metrics.RecordPushSuccess()
+	o.Metrics.RecordPushDuration(time.Since(pushStart))
 	o.Emitter.EmitPushed(pod, digest, targetRef, sourceNode)
 	logger.Info("pushed to backup registry", "digest", digest, "target", targetRef, "source", sourceNode)
 }

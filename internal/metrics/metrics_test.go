@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -79,5 +80,26 @@ func TestRecordSalvageFailure(t *testing.T) {
 	val := testutil.ToFloat64(c.SalvageFailures)
 	if val != 2 {
 		t.Errorf("expected 2, got %f", val)
+	}
+}
+
+func TestRecordSalvageDuration(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	c := NewCounters(reg)
+	c.RecordSalvageDuration(5 * time.Second)
+	c.RecordSalvageDuration(15 * time.Second)
+	count := testutil.CollectAndCount(c.SalvageDuration)
+	if count != 1 { // histogram is a single collector
+		t.Errorf("expected 1 collector, got %d", count)
+	}
+}
+
+func TestRecordPushDuration(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	c := NewCounters(reg)
+	c.RecordPushDuration(2 * time.Second)
+	count := testutil.CollectAndCount(c.PushDuration)
+	if count != 1 {
+		t.Errorf("expected 1 collector, got %d", count)
 	}
 }

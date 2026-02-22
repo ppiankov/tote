@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -16,6 +18,8 @@ type Counters struct {
 	PushAttempts      prometheus.Counter
 	PushSuccesses     prometheus.Counter
 	PushFailures      prometheus.Counter
+	SalvageDuration   prometheus.Histogram
+	PushDuration      prometheus.Histogram
 }
 
 // NewCounters creates and registers Prometheus counters with the given registry.
@@ -61,6 +65,16 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 			Name: "tote_push_failures_total",
 			Help: "Total number of failed backup registry push attempts.",
 		}),
+		SalvageDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "tote_salvage_duration_seconds",
+			Help:    "Duration of image salvage operations in seconds.",
+			Buckets: []float64{0.5, 1, 2, 5, 10, 30, 60, 120, 300},
+		}),
+		PushDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "tote_push_duration_seconds",
+			Help:    "Duration of backup registry push operations in seconds.",
+			Buckets: []float64{0.5, 1, 2, 5, 10, 30, 60, 120, 300},
+		}),
 	}
 
 	reg.MustRegister(
@@ -74,6 +88,8 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 		c.PushAttempts,
 		c.PushSuccesses,
 		c.PushFailures,
+		c.SalvageDuration,
+		c.PushDuration,
 	)
 
 	return c
@@ -127,4 +143,14 @@ func (c *Counters) RecordPushSuccess() {
 // RecordPushFailure increments the push failures counter.
 func (c *Counters) RecordPushFailure() {
 	c.PushFailures.Inc()
+}
+
+// RecordSalvageDuration observes salvage operation duration.
+func (c *Counters) RecordSalvageDuration(d time.Duration) {
+	c.SalvageDuration.Observe(d.Seconds())
+}
+
+// RecordPushDuration observes push operation duration.
+func (c *Counters) RecordPushDuration(d time.Duration) {
+	c.PushDuration.Observe(d.Seconds())
 }
