@@ -23,6 +23,8 @@ tote detects this situation, finds which nodes still have the image, and transfe
 - A detector that finds which cluster nodes still have the exact image digest cached
 - A salvage engine that transfers images node-to-node via gRPC agents and containerd
 - A cleanup tool that removes corrupt image records (content blobs missing) from containerd
+- A backup pipeline that pushes salvaged images to a registry before the last cached copy disappears
+- A webhook emitter that notifies external systems (Slack, PagerDuty) on detection and salvage events
 - A loud alarm that emits Kubernetes Warning events with node names
 - An emergency tool — a fire extinguisher, not plumbing
 
@@ -148,6 +150,10 @@ Warning  ImageNotActionable  Not actionable: image my-app:latest uses tag, not d
 | `--tls-cert` | | Path to TLS certificate file (enables mTLS when all three TLS flags are set). |
 | `--tls-key` | | Path to TLS private key file. |
 | `--tls-ca` | | Path to CA certificate file for verifying peers. |
+| `--json-log` | `false` | Output logs in JSON format. |
+| `--webhook-url` | | URL to POST event notifications (empty = disabled). |
+| `--webhook-events` | | Event types to send: `detected`, `salvaged`, `salvage_failed`, `pushed`, `push_failed`. |
+| `--salvagerecord-ttl` | `168h` | TTL for completed SalvageRecords before automatic cleanup. |
 
 **Agent** (`tote agent`):
 
@@ -165,9 +171,9 @@ Warning  ImageNotActionable  Not actionable: image my-app:latest uses tag, not d
 | Annotation | Target | Required | Description |
 |------------|--------|----------|-------------|
 | `tote.dev/allow` | Namespace | Yes | Enables tote detection for all opted-in pods in this namespace. |
-| `tote.dev/auto-salvage` | Pod | Yes | Marks this pod for tote detection. Must be set directly on the pod (or pod template). |
+| `tote.dev/auto-salvage` | Pod (or owner) | Yes | Marks this workload for tote detection. Can be set on the pod template or on the owning Deployment, StatefulSet, DaemonSet, or Job. |
 
-Both annotations must be set to `"true"` for tote to act. If either is missing, tote silently skips the pod.
+Both annotations must be set to `"true"` for tote to act. If either is missing, tote silently skips the pod. The `tote.dev/auto-salvage` annotation is inherited: tote walks ownerReferences up to 2 levels (Pod → ReplicaSet → Deployment).
 
 ### Denied namespaces
 
@@ -184,13 +190,15 @@ The following namespaces are **always excluded**, regardless of annotations:
 | `tote_detected_failures_total` | Counter | Total image pull failures detected on opted-in pods. |
 | `tote_salvageable_images_total` | Counter | Failures where the image digest was found cached on cluster nodes. |
 | `tote_not_actionable_total` | Counter | Failures where the image uses a tag instead of a digest. |
-| `tote_corrupt_images_total` | Counter | Corrupt image records detected and cleaned (content blobs missing). |
 | `tote_salvage_attempts_total` | Counter | Total salvage transfer attempts. |
 | `tote_salvage_successes_total` | Counter | Successful image salvages. |
 | `tote_salvage_failures_total` | Counter | Failed salvage attempts. |
 | `tote_push_attempts_total` | Counter | Backup registry push attempts. |
 | `tote_push_successes_total` | Counter | Successful backup registry pushes. |
 | `tote_push_failures_total` | Counter | Failed backup registry push attempts. |
+| `tote_corrupt_images_total` | Counter | Corrupt image records detected and cleaned (content blobs missing). |
+| `tote_salvage_duration_seconds` | Histogram | Time taken for salvage transfers. |
+| `tote_push_duration_seconds` | Histogram | Time taken for backup registry pushes. |
 
 If `tote_salvageable_images_total` is non-zero, you have technical debt. If it stays non-zero, you have a process problem.
 
@@ -221,31 +229,43 @@ rules:
     verbs: [get]
   - apiGroups: [tote.dev]
     resources: [salvagerecords, salvagerecords/status]
-    verbs: [get, list, create, update, patch]
+    verbs: [get, list, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [replicasets, deployments, statefulsets, daemonsets]
+    verbs: [get]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, create, update]
 ```
 
-Pod `delete` is for fast recovery after salvage (only pods with owner references). Secrets `get` is for reading backup registry credentials. SalvageRecords track salvage history and provide idempotency.
+Pod `delete` is for fast recovery after salvage (only pods with owner references). Secrets `get` is for reading backup registry credentials. SalvageRecords track salvage history and provide idempotency; `delete` is for TTL-based cleanup. Owner workload `get` (apps, batch) is for annotation inheritance. Leases are for leader election.
 
 ## Architecture
 
 ```
 cmd/tote/main.go                  Cobra CLI: controller + agent subcommands
+api/v1alpha1/                     SalvageRecord CRD types (tote.dev/v1alpha1)
+config/crd/                       Generated CRD manifests
 internal/
   version/version.go              Build-time version via LDFLAGS
   config/config.go                Kill switch, denied namespaces, annotation constants
-api/v1alpha1/                     SalvageRecord CRD types (tote.dev/v1alpha1)
-config/crd/                       Generated CRD manifests
-  detector/detector.go            Extract ImagePullBackOff/ErrImagePull from Pod status
+  detector/detector.go            Extract ImagePullBackOff/ErrImagePull/CreateContainerError
   resolver/resolver.go            Parse image refs, classify digest vs tag-only
   inventory/inventory.go          Find nodes with a digest via Node.Status.Images
   events/events.go                Emit structured Kubernetes Warning events
-  metrics/metrics.go              Prometheus counters
+  metrics/metrics.go              Prometheus counters + histograms
   controller/controller.go        PodReconciler wiring all packages together
   agent/                          containerd image store + gRPC agent server
   session/session.go              In-memory session store for transfer auth
   transfer/                       Orchestrator + agent endpoint resolver
   registry/                       Backup registry push via go-containerregistry
   tlsutil/                        mTLS credential loading for gRPC
+  cleanup/                        SalvageRecord TTL reaper
+  notify/                         Webhook notifications (JSON POST)
+  webhook/                        Annotation validation webhook (fail-open)
 ```
 
 ### Reconciliation flow
@@ -308,8 +328,6 @@ tote uses two methods to find cached images:
 
 4. **Agent requires root access**: The tote agent DaemonSet runs as root (`runAsUser: 0`) to access the containerd socket. This is required for image export/import operations. Environments with strict security policies (e.g., financial institutions) should evaluate this requirement. The controller does not require root.
 
-5. **No owner workload inheritance**: The `tote.dev/auto-salvage` annotation must be set directly on the Pod (or pod template). tote does not check the owning Deployment or StatefulSet annotations.
-
 ## Roadmap
 
 ### v0.1.0 — Detection
@@ -323,30 +341,51 @@ tote uses two methods to find cached images:
 - [x] Global kill switch
 - [x] Default-deny for critical namespaces
 
-### v0.2.0 (current) — Node-local salvage
+### v0.2.0 — Node-local salvage
 
 - [x] DaemonSet node agent for image export/import via containerd
 - [x] Node-to-node image transfer via gRPC streaming
 - [x] Tag resolution via agents (bypasses kubelet 50-image limit)
 - [x] One-shot per digest (SalvageRecord guard)
 - [x] Rate limiting (max concurrent salvages)
-- [x] Max image size guard
-- [x] Pod restart after salvage (fast recovery)
 - [x] Helm chart
 
-### v0.3 — Registry push and observability
+### v0.3.0 — Quick wins
+
+- [x] Max image size guard
+- [x] Pod restart after salvage (fast recovery)
+- [x] Demote per-reconcile agent logs to V(1)
+
+### v0.4.0 — Registry push and observability
 
 - [x] Push salvaged images to backup registry
-- [x] Grafana dashboard
-- [x] Leader election
-- [x] mTLS between agents
+- [x] Grafana dashboard with sidecar auto-discovery
+- [x] Leader election for multi-replica safety
+- [x] mTLS for gRPC communication
 - [x] Detect `CreateContainerError` (corrupt/incomplete images)
+- [x] `SalvageRecord` CRD for persistent salvage tracking
+
+### v0.5.0 (current) — Usability and hardening
+
+- [x] Owner workload annotation inheritance (Deployment, StatefulSet, DaemonSet, Job)
+- [x] Webhook notifications (`--webhook-url`)
+- [x] SalvageRecord TTL cleanup (`--salvagerecord-ttl`)
+- [x] Health and readiness probes (HTTP + gRPC)
+- [x] PodDisruptionBudget and NetworkPolicy templates
+- [x] Salvage and push duration histograms
+- [x] JSON logging (`--json-log`)
+- [x] Annotation validation webhook (fail-open)
+- [x] Reconcile requeue on transient salvage failures
+- [x] SalvageRecord field index for O(1) idempotency lookup
+- [x] Agent seccomp profile
+- [x] E2E tests with kind
+- [x] Helm chart lint validation
 
 ### Future
 
-- [x] CRD for salvage tracking (`SalvageRecord`)
-- [ ] Owner workload annotation inheritance
-- [ ] Webhook/Slack notifications
+- [ ] Multi-cluster salvage
+- [ ] Priority-based salvage queue
+- [ ] Image pre-warming based on deployment history
 
 ## Development
 
@@ -364,7 +403,7 @@ make vet          # go vet
 
 ### Requirements
 
-- Go 1.24+
+- Go 1.25+
 - golangci-lint (for linting)
 
 ## License
