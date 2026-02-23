@@ -454,15 +454,6 @@ func TestIsTransientError(t *testing.T) {
 	}
 }
 
-// fakeFailingOrchestrator is a minimal orchestrator that always fails with a given error.
-type fakeFailingOrchestrator struct {
-	err error
-}
-
-func (f *fakeFailingOrchestrator) Salvage(_ context.Context, _ *corev1.Pod, _, _, _ string) error {
-	return f.err
-}
-
 func TestReconcile_SalvageFailure_Requeues(t *testing.T) {
 	image := "registry.example.com/app@" + testDigest
 	pod := failingPod("default", "app", image)
