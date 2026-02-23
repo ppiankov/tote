@@ -9,6 +9,26 @@ Emergency Kubernetes operator that detects image pull failures, finds cached cop
 
 ---
 
+## Project Status
+
+**Current version: v0.5.0** — production-ready for detection and node-local salvage.
+
+| Milestone | Status | Description |
+|-----------|--------|-------------|
+| v0.1.0 | Complete | Detection: ImagePullBackOff/ErrImagePull watch, events, metrics |
+| v0.2.0 | Complete | Node-local salvage via gRPC agents and containerd |
+| v0.3.0 | Complete | Image size guard, pod restart after salvage |
+| v0.4.0 | Complete | Backup registry push, mTLS, leader election, SalvageRecord CRD |
+| v0.5.0 | Complete | Webhook notifications, owner inheritance, health probes, JSON logging |
+
+## Agentic Integration
+
+tote is designed to be operated by autonomous agents (Claude Code, Codex, etc.) without plugins or SDKs. Single binary, Helm-based deployment, structured Kubernetes events, Prometheus metrics.
+
+Agents: read [`SKILL.md`](SKILL.md) for commands, Helm values, event parsing patterns, and metrics queries.
+
+Key pattern for agents: `kubectl get events --field-selector reason=ImageSalvageable -o json` to check for salvageable images.
+
 ## Why this exists
 
 Kubernetes clusters with long-lived workloads lose images. Registries get cleaned. Artifacts get deleted. Harbors go down. Nobody has the Dockerfile anymore. Pods crash-loop with `ImagePullBackOff` while the exact image sits cached on another node, quietly working.
