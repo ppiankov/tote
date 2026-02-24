@@ -310,19 +310,19 @@ rules:
     verbs: [get]
   - apiGroups: [tote.dev]
     resources: [salvagerecords, salvagerecords/status]
-    verbs: [get, list, create, update, patch, delete]
+    verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [apps]
     resources: [replicasets, deployments, statefulsets, daemonsets]
-    verbs: [get]
+    verbs: [get, list, watch]
   - apiGroups: [batch]
     resources: [jobs]
-    verbs: [get]
+    verbs: [get, list, watch]
   - apiGroups: [coordination.k8s.io]
     resources: [leases]
     verbs: [get, create, update]
 ```
 
-Pod `delete` is for fast recovery after salvage (only pods with owner references). Secrets `get` is for reading backup registry credentials. SalvageRecords track salvage history and provide idempotency; `delete` is for TTL-based cleanup. Owner workload `get` (apps, batch) is for annotation inheritance. Leases are for leader election.
+Pod `delete` is for fast recovery after salvage (only pods with owner references). Secrets `get` is for reading backup registry credentials. SalvageRecords track salvage history and provide idempotency; `watch` is required for controller-runtime's informer cache; `delete` is for TTL-based cleanup. Owner workload `get/list/watch` (apps, batch) is for annotation inheritance — controller-runtime requires `list` and `watch` to set up informers. Leases are for leader election.
 
 ## Architecture
 
