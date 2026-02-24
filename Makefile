@@ -40,6 +40,7 @@ helm-lint:
 	helm template tote charts/tote/ --set tls.enabled=true,tls.secretName=tote-tls
 	helm template tote charts/tote/ --set dashboard.enabled=true
 	helm template tote charts/tote/ --set pdb.enabled=true,networkPolicy.enabled=true
+	helm template tote charts/tote/ --set serviceMonitor.enabled=true
 
 e2e-setup:
 	kind create cluster --name tote-e2e --config test/e2e/kind-config.yaml

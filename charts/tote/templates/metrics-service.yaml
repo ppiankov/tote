@@ -1,0 +1,41 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tote.fullname" . }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tote.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+spec:
+  clusterIP: None
+  selector:
+    {{- include "tote.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+  ports:
+    - name: metrics
+      port: {{ (split ":" .Values.config.metricsAddr)._1 | default 8080 }}
+      targetPort: metrics
+      protocol: TCP
+---
+{{- if .Values.agent.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tote.fullname" . }}-agent-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tote.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  clusterIP: None
+  selector:
+    {{- include "tote.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+  ports:
+    - name: metrics
+      port: {{ (split ":" .Values.agent.metricsAddr)._1 | default 8081 }}
+      targetPort: {{ (split ":" .Values.agent.metricsAddr)._1 | default 8081 }}
+      protocol: TCP
+{{- end }}
+{{- end }}
