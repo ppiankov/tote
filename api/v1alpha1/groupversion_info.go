@@ -1,4 +1,3 @@
-// Package v1alpha1 contains the tote.dev/v1alpha1 API types.
 package v1alpha1
 
 import (
