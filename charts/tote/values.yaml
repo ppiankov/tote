@@ -66,6 +66,16 @@ tls:
   # Name of the Secret containing TLS certs. Must exist in the release namespace.
   secretName: ""
 
+# Prometheus ServiceMonitor for auto-discovery (requires prometheus-operator).
+serviceMonitor:
+  enabled: false
+  # Scrape interval.
+  interval: "30s"
+  # Scrape timeout (must be less than interval).
+  scrapeTimeout: ""
+  # Additional labels for ServiceMonitor selection (e.g. release: kube-prometheus-stack).
+  labels: {}
+
 # Grafana dashboard ConfigMap (requires Grafana sidecar).
 dashboard:
   enabled: true
