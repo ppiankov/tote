@@ -14,17 +14,18 @@ rules:
   # SalvageRecords for persistent salvage tracking and idempotency.
   - apiGroups: [tote.dev]
     resources: [salvagerecords, salvagerecords/status]
-    verbs: [get, list, create, update, patch, delete]
+    verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]
   # Read owner workloads for annotation inheritance.
+  # controller-runtime cache requires list+watch for informers.
   - apiGroups: [apps]
     resources: [replicasets, deployments, statefulsets, daemonsets]
-    verbs: [get]
+    verbs: [get, list, watch]
   - apiGroups: [batch]
     resources: [jobs]
-    verbs: [get]
+    verbs: [get, list, watch]
   # Read namespaces to check opt-in annotations.
   - apiGroups: [""]
     resources: [namespaces]
