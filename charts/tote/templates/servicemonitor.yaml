@@ -10,16 +10,23 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
+  jobLabel: {{ include "tote.fullname" . }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
   selector:
     matchLabels:
       {{- include "tote.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: controller
   endpoints:
     - port: metrics
+      path: /metrics
+      scheme: http
       interval: {{ .Values.serviceMonitor.interval | default "30s" }}
       {{- with .Values.serviceMonitor.scrapeTimeout }}
       scrapeTimeout: {{ . }}
       {{- end }}
+      honorLabels: true
 ---
 {{- if .Values.agent.enabled }}
 apiVersion: monitoring.coreos.com/v1
@@ -33,15 +40,22 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
+  jobLabel: {{ include "tote.fullname" . }}-agent
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
   selector:
     matchLabels:
       {{- include "tote.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: agent
   endpoints:
     - port: metrics
+      path: /metrics
+      scheme: http
       interval: {{ .Values.serviceMonitor.interval | default "30s" }}
       {{- with .Values.serviceMonitor.scrapeTimeout }}
       scrapeTimeout: {{ . }}
       {{- end }}
+      honorLabels: true
 {{- end }}
 {{- end }}
