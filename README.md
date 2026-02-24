@@ -175,6 +175,46 @@ The Secret must be a standard `kubernetes.io/dockerconfigjson` type. tote reads 
 - `tote_push_attempts_total`, `tote_push_successes_total`, `tote_push_failures_total`
 - `tote_push_duration_seconds` (histogram)
 
+## Safety and security
+
+tote operates with cluster-level RBAC, requires explicit double opt-in (namespace + pod annotations), and secures all inter-node communication with mTLS. It prevents dangerous conditions structurally — not by detecting them after the fact.
+
+### Defense in depth
+
+| Layer | Mechanism | What it prevents |
+|-------|-----------|------------------|
+| Opt-in | Namespace + Pod annotations both required | Accidental salvage of workloads that shouldn't be touched |
+| Denied namespaces | `kube-system`, `kube-public`, `kube-node-lease` hardcoded | Control plane interference |
+| RBAC | Least-privilege ClusterRole, no write to workloads | Unauthorized API access, lateral movement |
+| mTLS | TLS 1.3 minimum, mutual cert verification on all gRPC | Eavesdropping, man-in-the-middle, rogue agents |
+| Session tokens | UUID per transfer, bound to digest + nodes + TTL | Unauthorized image export, replay attacks |
+| NetworkPolicy | Controller-to-agent and agent-to-agent traffic only | Lateral network movement |
+| Container hardening | `readOnlyRootFilesystem`, `drop: ALL` caps, seccomp RuntimeDefault | Container escape, privilege escalation |
+| Validation webhook | Rejects unknown `tote.dev/*` annotations, fail-open | Typo-driven misconfigurations |
+| Image size limit | `--max-image-size` (default 2 GiB) | Resource exhaustion / DoS |
+| Concurrency limit | `--max-concurrent-salvages` (default 2) | Cluster-wide resource pressure |
+
+### Agent privilege
+
+The agent DaemonSet runs as root (`runAsUser: 0`) because containerd's Unix socket requires it. All other hardening is applied: capabilities are dropped (`drop: ALL`), the filesystem is read-only, and seccomp RuntimeDefault is enforced. The controller runs as non-root with identical hardening.
+
+### What tote does NOT protect against
+
+- **Image provenance** — tote does not verify signatures, SBOMs, or supply chain integrity. It transfers exactly what containerd has cached.
+- **Secrets in images** — if the cached image contains embedded secrets, tote will faithfully transfer them.
+- **Root compromise** — if an attacker has root on a node, the containerd socket is already accessible. tote adds no additional attack surface beyond what containerd provides.
+- **etcd encryption** — SalvageRecords and session data follow cluster-level encryption-at-rest settings. tote does not add its own encryption layer.
+- **Registry credential rotation** — backup registry credentials are read from a Kubernetes Secret at transfer time. tote does not manage credential lifecycle.
+
+### Recommended cluster hardening
+
+- Enable mTLS: `--set tls.enabled=true`
+- Enable NetworkPolicy: `--set networkPolicy.enabled=true`
+- Enable validation webhook: `--set webhook.enabled=true`
+- Restrict agent DaemonSet to worker nodes via `nodeSelector` / tolerations
+- Use Pod Security Standards (`restricted` for controller, `baseline` for agent)
+- Enable etcd encryption for SalvageRecord CRDs
+
 ## Usage
 
 ### CLI flags
