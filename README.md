@@ -222,6 +222,29 @@ The following namespaces are **always excluded**, regardless of annotations:
 
 If `tote_salvageable_images_total` is non-zero, you have technical debt. If it stays non-zero, you have a process problem.
 
+### Prometheus Operator auto-discovery
+
+tote ships optional `ServiceMonitor` resources for automatic scrape target discovery. Requires the [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator).
+
+```bash
+helm install tote ./charts/tote --set serviceMonitor.enabled=true
+```
+
+If your Prometheus uses label-based ServiceMonitor selection:
+
+```bash
+helm install tote ./charts/tote \
+  --set serviceMonitor.enabled=true \
+  --set serviceMonitor.labels.release=kube-prometheus-stack
+```
+
+| Helm Value | Default | Description |
+|------------|---------|-------------|
+| `serviceMonitor.enabled` | `false` | Create ServiceMonitor resources for controller and agent. |
+| `serviceMonitor.interval` | `30s` | Scrape interval. |
+| `serviceMonitor.scrapeTimeout` | | Scrape timeout (must be less than interval). |
+| `serviceMonitor.labels` | `{}` | Additional labels for ServiceMonitor selection. |
+
 ### RBAC requirements
 
 tote needs the following cluster-level permissions:
