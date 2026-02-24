@@ -149,6 +149,32 @@ Or if the image uses a tag instead of a digest:
 Warning  ImageNotActionable  Not actionable: image my-app:latest uses tag, not digest. Pin images by digest for tote to help.
 ```
 
+## Backup registry push
+
+After a successful salvage, tote can push the image to a backup registry so the salvaged copy survives node restarts and scale-downs. The push is non-fatal — if it fails, salvage still succeeds and an `ImagePushFailed` event is emitted.
+
+```bash
+# Enable backup registry via Helm
+helm install tote ./charts/tote -n tote --create-namespace \
+  --set controller.backupRegistry=harbor.example.com/tote-backup \
+  --set controller.backupRegistrySecret=harbor-creds
+
+# Or via CLI flags
+./tote controller \
+  --backup-registry=harbor.example.com/tote-backup \
+  --backup-registry-secret=harbor-creds
+```
+
+The Secret must be a standard `kubernetes.io/dockerconfigjson` type. tote reads credentials from it and passes them to the source agent, which pushes the image via `go-containerregistry`.
+
+**Events:**
+- `ImagePushed` (Normal) — image successfully pushed to backup registry
+- `ImagePushFailed` (Warning) — push failed, includes error details
+
+**Metrics:**
+- `tote_push_attempts_total`, `tote_push_successes_total`, `tote_push_failures_total`
+- `tote_push_duration_seconds` (histogram)
+
 ## Usage
 
 ### CLI flags
@@ -244,6 +270,18 @@ helm install tote ./charts/tote \
 | `serviceMonitor.interval` | `30s` | Scrape interval. |
 | `serviceMonitor.scrapeTimeout` | | Scrape timeout (must be less than interval). |
 | `serviceMonitor.labels` | `{}` | Additional labels for ServiceMonitor selection. |
+
+### Kubernetes events
+
+| Reason | Type | Description |
+|--------|------|-------------|
+| `ImageSalvageable` | Warning | Image digest found cached on other nodes. Includes node names. |
+| `ImageNotActionable` | Warning | Image uses a tag instead of a digest — cannot verify identity across nodes. |
+| `ImageSalvaged` | Normal | Image successfully transferred from source to target node. |
+| `ImageSalvageFailed` | Warning | Salvage transfer failed. Includes error details. |
+| `ImageCorrupt` | Warning | Corrupt image record detected in containerd (missing content blobs). |
+| `ImagePushed` | Normal | Image pushed to backup registry after salvage. |
+| `ImagePushFailed` | Warning | Backup registry push failed. Non-fatal — salvage still succeeded. |
 
 ### RBAC requirements
 
