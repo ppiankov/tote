@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-02-24
+
+### Fixed
+
+- CRD generation: added `+groupName=tote.dev` marker to `api/v1alpha1/doc.go`
+- RBAC: added `list` and `watch` verbs for apps, batch, and SalvageRecord resources (required by controller-runtime informers)
+- ServiceMonitor templates aligned with production Prometheus Operator patterns (`namespaceSelector`, `honorLabels`, `jobLabel`)
+
+### Added
+
+- Safety and Security section in README (defense-in-depth table, threat non-goals, hardening recommendations)
+- Headless metrics Services for ServiceMonitor target discovery
+
+### Changed
+
+- RBAC explanation in README updated to document controller-runtime informer requirements
+
 ## [0.5.0] - 2026-02-22
 
 ### Added
@@ -120,7 +137,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-deny for critical namespaces: `kube-system`, `kube-public`, `kube-node-lease`
 - CLI flags: `--enabled`, `--metrics-addr`, `--version`
 
-[Unreleased]: https://github.com/ppiankov/tote/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/ppiankov/tote/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/ppiankov/tote/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ppiankov/tote/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ppiankov/tote/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ppiankov/tote/compare/v0.2.0...v0.3.0

@@ -1,10 +1,10 @@
-tote context snapshot — 2026-02-22
+tote context snapshot — 2026-02-24
 
 ## Current state
 
-Version: 0.5.0 (unreleased, all commits on main)
-Last tag: v0.4.0
-All work orders (WO-1 through WO-25) complete. Project at logical finish state.
+Version: 0.5.1 (tagged)
+Last tag: v0.5.1
+All work orders (WO-1 through WO-25) complete. v0.5.1 patches CRD generation and RBAC from v0.5.0.
 
 ## Completed work orders
 
@@ -64,3 +64,10 @@ test/e2e (build-tagged E2E tests)
 - Local golangci-lint is v1, config is v2 format. make lint fails locally.
   CI works fine. Could install v2 locally or keep as-is.
 - E2E tests require kind cluster (make e2e-setup). Not run in CI yet.
+
+## v0.5.1 fixes (2026-02-24)
+
+- CRD generation: added +groupName=tote.dev marker to api/v1alpha1/doc.go
+- RBAC: added list+watch for apps, batch, SalvageRecords (controller-runtime informers)
+- ServiceMonitor aligned with production Prometheus Operator patterns
+- Safety and Security section added to README

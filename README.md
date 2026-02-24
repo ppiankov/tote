@@ -11,7 +11,7 @@ Emergency Kubernetes operator that detects image pull failures, finds cached cop
 
 ## Project Status
 
-**Current version: v0.5.0** — production-ready for detection and node-local salvage.
+**Current version: v0.5.1** — production-ready for detection and node-local salvage.
 
 | Milestone | Status | Description |
 |-----------|--------|-------------|
@@ -20,6 +20,7 @@ Emergency Kubernetes operator that detects image pull failures, finds cached cop
 | v0.3.0 | Complete | Image size guard, pod restart after salvage |
 | v0.4.0 | Complete | Backup registry push, mTLS, leader election, SalvageRecord CRD |
 | v0.5.0 | Complete | Webhook notifications, owner inheritance, health probes, JSON logging |
+| v0.5.1 | Complete | CRD generation fix, RBAC fix for controller-runtime informers, security docs |
 
 ## Agentic Integration
 
@@ -486,7 +487,14 @@ tote uses two methods to find cached images:
 - [x] Detect `CreateContainerError` (corrupt/incomplete images)
 - [x] `SalvageRecord` CRD for persistent salvage tracking
 
-### v0.5.0 (current) — Usability and hardening
+### v0.5.1 (current) — Fixes
+
+- [x] Fix CRD generation (`+groupName=tote.dev` marker in doc.go)
+- [x] Fix RBAC: add `list`/`watch` for apps, batch, and SalvageRecords (controller-runtime informers)
+- [x] Add Safety and Security section to README
+- [x] ServiceMonitor aligned with production Prometheus Operator patterns
+
+### v0.5.0 — Usability and hardening
 
 - [x] Owner workload annotation inheritance (Deployment, StatefulSet, DaemonSet, Job)
 - [x] Webhook notifications (`--webhook-url`)
