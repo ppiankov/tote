@@ -4,7 +4,7 @@ VERSION    ?= dev
 LDFLAGS    := -s -w -X $(MODULE)/internal/version.Version=$(VERSION)
 GOFLAGS    := -race
 
-.PHONY: build test lint fmt clean deps vet docker-build generate helm-lint e2e e2e-setup e2e-teardown
+.PHONY: build test lint fmt clean deps vet docker-build generate proto helm-lint e2e e2e-setup e2e-teardown
 
 build:
 	go build -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/$(BINARY)/
@@ -33,6 +33,11 @@ generate:
 	controller-gen object paths=./api/v1alpha1/ output:dir=./api/v1alpha1/
 	controller-gen crd paths=./api/v1alpha1/ output:crd:dir=./config/crd/
 	cp config/crd/tote.dev_salvagerecords.yaml charts/tote/crds/
+
+proto:
+	protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		api/v1/agent.proto
 
 helm-lint:
 	helm lint charts/tote/

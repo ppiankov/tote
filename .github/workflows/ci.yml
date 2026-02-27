@@ -10,14 +10,11 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.24', '1.25']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: '1.25'
       - run: make deps
       - run: make test
 
@@ -49,6 +46,26 @@ jobs:
         with:
           version: latest
           args: --config .golangci-full.yml --timeout=15m
+
+  generate:
+    name: Generated code check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1
+      - run: make generate
+      - run: git diff --exit-code config/crd/ charts/tote/crds/ api/v1alpha1/
+
+  helm:
+    name: Helm lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: make helm-lint
 
   build:
     name: Build
