@@ -60,6 +60,10 @@ tote feeds image pull failure and salvage events into [SpectreHub](https://githu
 spectrehub collect --tool tote
 ```
 
+## Troubleshooting
+
+See [docs/troubleshooting.md](docs/troubleshooting.md) for a step-by-step debugging guide.
+
 ## Safety
 
 tote operates with **minimal cluster permissions**. It reads pod status and transfers cached images between nodes — never deletes images, pods, or other resources.
