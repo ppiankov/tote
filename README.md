@@ -10,6 +10,12 @@ Emergency Kubernetes operator that detects image pull failures, finds cached cop
 
 **If this tool ever feels comfortable, you've used it wrong.**
 
+## Why this exists
+
+Kubernetes clusters with long-lived workloads lose images. Registries get cleaned. Artifacts get deleted. Harbors go down. Nobody has the Dockerfile anymore. Pods crash-loop with `ImagePullBackOff` while the exact image sits cached on another node, quietly working.
+
+tote detects this situation, finds which nodes still have the image, and transfers it to where it's needed — automatically, if you opt in.
+
 ## What tote is
 
 - A Kubernetes operator that watches for `ImagePullBackOff`, `ErrImagePull`, and `CreateContainerError`
