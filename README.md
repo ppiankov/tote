@@ -1,77 +1,89 @@
 # tote
 
 [![CI](https://github.com/ppiankov/tote/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiankov/tote/actions/workflows/ci.yml)
+[![Release](https://github.com/ppiankov/tote/actions/workflows/release.yml/badge.svg)](https://github.com/ppiankov/tote/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ppiankov/tote)](https://goreportcard.com/report/github.com/ppiankov/tote)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![ANCC](https://img.shields.io/badge/ANCC-compliant-brightgreen)](https://ancc.dev)
 
-**tote** — Emergency Kubernetes operator for image pull failure recovery. Part of [SpectreHub](https://github.com/ppiankov/spectrehub).
+Emergency Kubernetes operator that detects image pull failures, finds cached copies on other nodes, and salvages images via node-to-node transfer.
 
-## What it is
+**If this tool ever feels comfortable, you've used it wrong.**
 
-- Detects ImagePullBackOff and ErrImagePull failures in real time
-- Finds cached copies of failed images on other cluster nodes
-- Salvages images via node-to-node transfer using gRPC agents and containerd
-- Supports backup registry push, mTLS, leader election, and CRD-based records
-- Provides webhook notifications, Prometheus metrics, and structured JSON logging
+## What tote is
 
-## What it is NOT
+- A Kubernetes operator that watches for `ImagePullBackOff`, `ErrImagePull`, and `CreateContainerError`
+- A detector that finds which cluster nodes still have the exact image digest cached
+- A salvage engine that transfers images node-to-node via gRPC agents and containerd
+- A cleanup tool that removes corrupt image records from containerd
+- A backup pipeline that pushes salvaged images to a registry before the last cached copy disappears
+- A webhook emitter that notifies external systems on detection and salvage events
+- An emergency tool — a fire extinguisher, not plumbing
 
-- Not a container registry — salvages from node cache, not a storage layer
-- Not a CI/CD tool — operates at runtime, not build time
-- Not a monitoring dashboard — emits events and metrics for external systems
-- Not a replacement for registry HA — emergency recovery, not primary distribution
+## What tote is NOT
+
+- **NOT a replacement for proper CI/CD** — fix your build pipeline, tote just buys you time
+- **NOT a security tool** — does not validate signatures, provenance, or supply chain integrity
+- **NOT invisible** — every detection emits a Warning event that says "This is technical debt"
+- **NOT enabled by default** — requires explicit opt-in annotations on both Namespace and Pod
+
+## Philosophy
+
+> Principiis obsta — resist the beginnings.
+
+tote exists to keep production alive long enough for humans to fix what they broke. It presents evidence and lets operators decide. Every event it emits is a reminder that something upstream is broken.
+
+This is duct tape for container images. Use it. Then fix the real problem.
 
 ## Quick start
 
-### Helm
+```bash
+# Helm install
+helm install tote ./charts/tote -n tote --create-namespace
 
-```sh
-helm repo add ppiankov https://ppiankov.github.io/tote
-helm install tote ppiankov/tote
+# Opt in a namespace
+kubectl annotate namespace my-app tote.dev/allow=true
+
+# Opt in a workload (in pod template)
+# annotations:
+#   tote.dev/auto-salvage: "true"
 ```
 
-### From source
+When an image pull fails, tote emits events like:
 
-```sh
-git clone https://github.com/ppiankov/tote.git
-cd tote
-make build
+```
+Warning  ImageSalvageable  Registry pull failed for registry.example.com/my-app@sha256:e3b0c44...;
+                           image digest exists on nodes: [node-1, node-3].
+                           This is technical debt — rebuild and push the image properly.
 ```
 
-### Usage
+## Agent integration
 
-```sh
-helm install tote ppiankov/tote --set agent.enabled=true
-```
+Single binary, Helm-based deployment, structured Kubernetes events, Prometheus metrics.
 
-## Components
+Agents: read [`SKILL.md`](SKILL.md) for commands, Helm values, event parsing patterns, and metrics queries.
 
-| Component | Description |
-|-----------|-------------|
-| Controller | Watches for ImagePullBackOff, coordinates salvage |
-| Agent (DaemonSet) | Runs on each node, handles containerd image operations |
-| CRD (SalvageRecord) | Tracks salvage history and outcomes |
-| Webhooks | Notifies external systems on salvage events |
+Key pattern: `kubectl get events --field-selector reason=ImageSalvageable -o json`
 
 ## SpectreHub integration
-
-tote feeds image pull failure and salvage events into [SpectreHub](https://github.com/ppiankov/spectrehub) for unified visibility across your infrastructure.
 
 ```sh
 spectrehub collect --tool tote
 ```
 
-## Troubleshooting
+## Documentation
 
-See [docs/troubleshooting.md](docs/troubleshooting.md) for a step-by-step debugging guide.
-
-## Safety
-
-tote operates with **minimal cluster permissions**. It reads pod status and transfers cached images between nodes — never deletes images, pods, or other resources.
+| Document | Contents |
+|----------|----------|
+| [Architecture](docs/architecture.md) | Module layout, reconciliation flow, node inventory |
+| [CLI Reference](docs/cli-reference.md) | Controller/agent flags, annotations, events, metrics |
+| [Security & Safety](docs/security.md) | Defense in depth, mTLS, RBAC, hardening |
+| [Known Limitations](docs/known-limitations.md) | kubelet limits, tag-only images, imagePullPolicy |
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[MIT](LICENSE)
 
 ---
 
-Built by [Obsta Labs](https://github.com/ppiankov)
+*tote exists to keep prod alive long enough for humans to fix what they broke.*
