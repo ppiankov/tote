@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-11
+
+### Added
+
+- PrometheusRule alerts: `ToteImagePullFailureDetected`, `ToteSalvageFailing`, `ToteNoSalvageableImages`, `ToteControllerDown`
+- Helm values: `prometheusRule.enabled`, `prometheusRule.labels`
+- Troubleshooting guide (`docs/troubleshooting.md`) with reconciliation flow walkthrough and decision tree
+
 ## [0.5.1] - 2026-02-24
 
 ### Fixed
@@ -137,7 +145,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-deny for critical namespaces: `kube-system`, `kube-public`, `kube-node-lease`
 - CLI flags: `--enabled`, `--metrics-addr`, `--version`
 
-[Unreleased]: https://github.com/ppiankov/tote/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/ppiankov/tote/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/ppiankov/tote/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/ppiankov/tote/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ppiankov/tote/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ppiankov/tote/compare/v0.3.0...v0.4.0
