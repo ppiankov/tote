@@ -1,0 +1,51 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "tote.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tote.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: tote
+      rules:
+        - alert: ToteImagePullFailureDetected
+          expr: increase(tote_detected_failures_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Image pull failures detected"
+            description: "tote detected {{ "{{" }} $value {{ "}}" }} image pull failures in the last 5 minutes."
+
+        - alert: ToteSalvageFailing
+          expr: increase(tote_salvage_failures_total[10m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Image salvage operations are failing"
+            description: "{{ "{{" }} $value {{ "}}" }} salvage failures in the last 10 minutes. Check agent connectivity and logs."
+
+        - alert: ToteNoSalvageableImages
+          expr: increase(tote_not_actionable_total[10m]) > increase(tote_salvageable_images_total[10m])
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Most image failures are not salvageable"
+            description: "More failures are not-actionable than salvageable. Consider using digest references instead of tags."
+
+        - alert: ToteControllerDown
+          expr: up{job=~".*tote.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "tote controller is down"
+            description: "Prometheus cannot scrape the tote controller metrics endpoint."
+{{- end }}

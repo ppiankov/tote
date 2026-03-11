@@ -76,6 +76,12 @@ serviceMonitor:
   # Additional labels for ServiceMonitor selection (e.g. release: kube-prometheus-stack).
   labels: {}
 
+# PrometheusRule alerts (requires prometheus-operator).
+prometheusRule:
+  enabled: false
+  # Additional labels for PrometheusRule selection (e.g. release: kube-prometheus-stack).
+  labels: {}
+
 # Grafana dashboard ConfigMap (requires Grafana sidecar).
 dashboard:
   enabled: true
