@@ -216,6 +216,41 @@ kubectl describe pod myapp-abc123 -n my-namespace | grep -A2 tote
 | `tote_push_failures_total` | Failed pushes |
 | `tote_push_duration_seconds` | Push time histogram |
 
+### Prometheus alerts and ServiceMonitor
+
+tote ships optional `PrometheusRule` and `ServiceMonitor` resources (disabled by default):
+
+```sh
+helm upgrade tote ppiankov/tote \
+  --set serviceMonitor.enabled=true \
+  --set prometheusRule.enabled=true \
+  --set prometheusRule.labels.release=prometheus-operator
+```
+
+**The `release` label must match your Prometheus `ruleSelector`**. To find the correct value:
+
+```sh
+kubectl get prometheus -A -o jsonpath='{.items[0].spec.ruleSelector}'
+# Example output: {"matchLabels":{"release":"prometheus-operator"}}
+```
+
+Use whatever value appears after `release:`. Common values: `prometheus-operator`, `kube-prometheus-stack`, `monitoring`.
+
+**If alerts don't appear after install:**
+
+```sh
+# Verify the PrometheusRule exists
+kubectl get prometheusrules -A | grep tote
+
+# Check labels match
+kubectl get prometheusrule -n <namespace> tote -o jsonpath='{.metadata.labels.release}'
+
+# Verify rules are loaded in Prometheus
+curl -s http://localhost:9090/api/v1/rules | jq '.data.groups[] | select(.name=="tote")'
+```
+
+Same applies to `serviceMonitor.labels` — check `spec.serviceMonitorSelector` on your Prometheus resource.
+
 ### Decision tree
 
 ```
