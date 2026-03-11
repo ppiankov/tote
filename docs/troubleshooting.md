@@ -27,7 +27,28 @@ kubectl logs -n tote-system ds/tote-agent --tail=100
 | Controller pod not running | Helm install incomplete | `helm install tote ppiankov/tote` |
 | Agent pods missing | Agent not enabled | `helm upgrade tote ppiankov/tote --set agent.enabled=true` |
 | Controller CrashLoopBackOff | Missing CRD | `kubectl apply -f charts/tote/crds/` |
+| Controller OOMKilled (exit 137) | Informer cache too large for memory limit | Increase memory limit (see below) |
 | RBAC 403 errors in logs | Insufficient permissions | Check ClusterRole has `list`, `watch`, `get` for pods, nodes, deployments, replicasets, statefulsets, daemonsets, jobs, salvagerecords |
+
+### Controller OOMKilled
+
+The controller watches **all Pods cluster-wide** via controller-runtime informers. The informer cache holds every pod object in memory. On clusters with many pods, the default 128Mi limit is insufficient.
+
+| Cluster pods | Recommended memory limit |
+|-------------|--------------------------|
+| < 1,000     | 256Mi                    |
+| 1,000–5,000 | 512Mi                    |
+| 5,000+      | 1Gi                      |
+
+```sh
+# Check your pod count
+kubectl get pods -A --no-headers | wc -l
+
+# Increase memory
+helm upgrade tote ppiankov/tote --set resources.limits.memory=512Mi --set resources.requests.memory=128Mi
+```
+
+Signs of OOM: `CrashLoopBackOff` with `reason: OOMKilled` and `exitCode: 137` in pod status. Restart count climbs steadily.
 
 ## 2. Namespace opt-in
 
