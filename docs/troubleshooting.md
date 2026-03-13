@@ -32,19 +32,19 @@ kubectl logs -n tote-system ds/tote-agent --tail=100
 
 ### Controller OOMKilled
 
-The controller watches **all Pods cluster-wide** via controller-runtime informers. The informer cache holds every pod object in memory. On clusters with many pods, the default 128Mi limit is insufficient.
+The controller watches **all Pods cluster-wide** via controller-runtime informers. Since v0.7.0, a cache transform strips unused pod fields before caching, reducing per-pod memory from ~15KB to ~1-2KB. The default 256Mi limit handles most clusters.
 
 | Cluster pods | Recommended memory limit |
 |-------------|--------------------------|
-| < 1,000     | 256Mi                    |
-| 1,000–5,000 | 512Mi                    |
-| 5,000+      | 1Gi                      |
+| < 5,000     | 256Mi (default)          |
+| 5,000–15,000| 512Mi                    |
+| 15,000+     | 1Gi                      |
 
 ```sh
 # Check your pod count
 kubectl get pods -A --no-headers | wc -l
 
-# Increase memory
+# Increase memory if needed
 helm upgrade tote ppiankov/tote --set resources.limits.memory=512Mi --set resources.requests.memory=128Mi
 ```
 

@@ -13,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -169,6 +171,11 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 		HealthProbeBindAddress: ":8081",
 		LeaderElection:         true,
 		LeaderElectionID:       "tote-controller",
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.Pod{}: {Transform: stripPodFields},
+			},
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)
@@ -263,6 +270,80 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 	}
 
 	return mgr.Start(ctrl.SetupSignalHandler())
+}
+
+// stripPodFields removes fields from Pod objects before they enter the informer
+// cache. The controller only needs a small subset of each pod; stripping the rest
+// reduces per-pod memory from ~15KB to ~1-2KB on sidecar-injected clusters.
+//
+// Retained fields:
+//   - metadata: name, namespace, annotations, ownerReferences, labels, uid, resourceVersion
+//   - spec: nodeName, containers[].name, containers[].image
+//   - status: containerStatuses[].state.waiting, initContainerStatuses[].state.waiting
+func stripPodFields(obj any) (any, error) {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return obj, nil
+	}
+
+	// Strip spec fields we don't use.
+	pod.Spec.Volumes = nil
+	pod.Spec.InitContainers = nil
+	pod.Spec.SecurityContext = nil
+	pod.Spec.ServiceAccountName = ""
+	pod.Spec.SchedulerName = ""
+	pod.Spec.DNSPolicy = ""
+	pod.Spec.RestartPolicy = ""
+	pod.Spec.TerminationGracePeriodSeconds = nil
+	for i := range pod.Spec.Containers {
+		c := &pod.Spec.Containers[i]
+		c.Command = nil
+		c.Args = nil
+		c.Env = nil
+		c.EnvFrom = nil
+		c.VolumeMounts = nil
+		c.Ports = nil
+		c.Resources = corev1.ResourceRequirements{}
+		c.LivenessProbe = nil
+		c.ReadinessProbe = nil
+		c.StartupProbe = nil
+		c.SecurityContext = nil
+		c.ImagePullPolicy = ""
+		c.TerminationMessagePath = ""
+		c.TerminationMessagePolicy = ""
+	}
+
+	// Strip status fields we don't use.
+	pod.Status.Conditions = nil
+	pod.Status.PodIPs = nil
+	pod.Status.HostIP = ""
+	pod.Status.PodIP = ""
+	pod.Status.StartTime = nil
+	for i := range pod.Status.ContainerStatuses {
+		s := &pod.Status.ContainerStatuses[i]
+		s.Ready = false
+		s.RestartCount = 0
+		s.ContainerID = ""
+		s.Started = nil
+		s.State.Running = nil
+		s.State.Terminated = nil
+		s.LastTerminationState = corev1.ContainerState{}
+	}
+	for i := range pod.Status.InitContainerStatuses {
+		s := &pod.Status.InitContainerStatuses[i]
+		s.Ready = false
+		s.RestartCount = 0
+		s.ContainerID = ""
+		s.Started = nil
+		s.State.Running = nil
+		s.State.Terminated = nil
+		s.LastTerminationState = corev1.ContainerState{}
+	}
+
+	// Strip managed fields (metadata bloat from server-side apply).
+	pod.ManagedFields = nil
+
+	return pod, nil
 }
 
 func runAgent(containerdSocket string, grpcPort int, metricsAddr, tlsCert, tlsKey, tlsCA string, jsonLog bool) error {
