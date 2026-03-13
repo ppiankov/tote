@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-03-13
+
+### Added
+
+- Cache transform strips unused pod fields before informer caching (~10x memory reduction)
+
+### Changed
+
+- Default controller memory: 64Mi request / 256Mi limit (down from 128Mi / 512Mi)
+- Troubleshooting OOM table updated for post-transform sizing
+
 ## [0.6.0] - 2026-03-11
 
 ### Added
@@ -145,7 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-deny for critical namespaces: `kube-system`, `kube-public`, `kube-node-lease`
 - CLI flags: `--enabled`, `--metrics-addr`, `--version`
 
-[Unreleased]: https://github.com/ppiankov/tote/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/ppiankov/tote/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/ppiankov/tote/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ppiankov/tote/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/ppiankov/tote/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ppiankov/tote/compare/v0.4.0...v0.5.0
