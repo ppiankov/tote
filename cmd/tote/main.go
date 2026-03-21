@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,6 +28,7 @@ import (
 	"github.com/ppiankov/tote/internal/cleanup"
 	"github.com/ppiankov/tote/internal/config"
 	"github.com/ppiankov/tote/internal/controller"
+	"github.com/ppiankov/tote/internal/doctor"
 	"github.com/ppiankov/tote/internal/events"
 	"github.com/ppiankov/tote/internal/inventory"
 	"github.com/ppiankov/tote/internal/metrics"
@@ -51,9 +55,11 @@ func newRootCmd() *cobra.Command {
 
 	controllerCmd := newControllerCmd()
 	agentCmd := newAgentCmd()
+	doctorCmd := newDoctorCmd()
 
 	root.AddCommand(controllerCmd)
 	root.AddCommand(agentCmd)
+	root.AddCommand(doctorCmd)
 
 	// Bare "tote" (no subcommand) runs the controller for backward compat.
 	root.RunE = controllerCmd.RunE
@@ -146,6 +152,39 @@ func newAgentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tlsKey, "tls-key", "", "path to TLS private key file")
 	cmd.Flags().StringVar(&tlsCA, "tls-ca", "", "path to CA certificate file")
 	cmd.Flags().BoolVar(&jsonLog, "json-log", false, "output logs in JSON format")
+
+	return cmd
+}
+
+func newDoctorCmd() *cobra.Command {
+	var namespace string
+
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Check runtime prerequisites and report health status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := ctrl.GetConfigOrDie()
+			clientset, err := kubernetes.NewForConfig(cfg)
+			if err != nil {
+				return fmt.Errorf("creating kubernetes client: %w", err)
+			}
+
+			result := doctor.Run(context.Background(), clientset, namespace)
+
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			if err := enc.Encode(result); err != nil {
+				return fmt.Errorf("encoding result: %w", err)
+			}
+
+			if !result.OK {
+				os.Exit(1)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&namespace, "namespace", "tote-system", "namespace where tote is deployed")
 
 	return cmd
 }

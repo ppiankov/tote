@@ -4,7 +4,7 @@
 [![Release](https://github.com/ppiankov/tote/actions/workflows/release.yml/badge.svg)](https://github.com/ppiankov/tote/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ppiankov/tote)](https://goreportcard.com/report/github.com/ppiankov/tote)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![ANCC](https://img.shields.io/badge/ANCC-compliant-brightgreen)](https://ancc.dev)
+[![ANCC](https://img.shields.io/badge/ANCC-compliant-brightgreen)](docs/SKILL.md)
 
 Emergency Kubernetes operator that detects image pull failures, finds cached copies on other nodes, and salvages images via node-to-node transfer.
 
@@ -67,7 +67,7 @@ Warning  ImageSalvageable  Registry pull failed for registry.example.com/my-app@
 
 Single binary, Helm-based deployment, structured Kubernetes events, Prometheus metrics.
 
-Agents: read [`SKILL.md`](SKILL.md) for commands, Helm values, event parsing patterns, and metrics queries.
+Agents: read [`docs/SKILL.md`](docs/SKILL.md) for commands, Helm values, event parsing patterns, and metrics queries.
 
 Key pattern: `kubectl get events --field-selector reason=ImageSalvageable -o json`
 
