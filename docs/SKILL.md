@@ -92,7 +92,7 @@ Print version information.
 
 ```json
 {
-  "version": "0.6.1"
+  "version": "0.7.0"
 }
 ```
 
@@ -237,7 +237,7 @@ When `--json-log=true`, logs are structured JSON (one object per line):
 | Value | Default | Description |
 |-------|---------|-------------|
 | `image.repository` | `ghcr.io/ppiankov/tote` | Container image |
-| `image.tag` | `0.6.1` | Image tag |
+| `image.tag` | `0.7.0` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 | `resources.requests.memory` | `64Mi` | Controller memory request |
 | `resources.limits.memory` | `256Mi` | Controller memory limit |

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-21
+
+### Added
+
+- `tote doctor` command — structured JSON health checks (kubeconfig, CRD, controller, agents, namespaces)
+- `docs/SKILL.md` — ANCC-compliant skill file with JSON output schemas, metrics, events, CRD schema
+
+### Changed
+
+- ANCC badge and agent discovery link now point to `docs/SKILL.md`
+
 ## [0.6.1] - 2026-03-13
 
 ### Added
@@ -156,7 +167,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-deny for critical namespaces: `kube-system`, `kube-public`, `kube-node-lease`
 - CLI flags: `--enabled`, `--metrics-addr`, `--version`
 
-[Unreleased]: https://github.com/ppiankov/tote/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/ppiankov/tote/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/ppiankov/tote/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/ppiankov/tote/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ppiankov/tote/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/ppiankov/tote/compare/v0.5.0...v0.5.1
