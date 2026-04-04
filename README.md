@@ -82,6 +82,7 @@ spectrehub collect --tool tote
 | Document | Contents |
 |----------|----------|
 | [Architecture](docs/architecture.md) | Module layout, reconciliation flow, node inventory |
+| [Operations Guide](docs/operations-guide.md) | Installation, configuration, alerts, metrics, logs, troubleshooting |
 | [CLI Reference](docs/cli-reference.md) | Controller/agent flags, annotations, events, metrics |
 | [Security & Safety](docs/security.md) | Defense in depth, mTLS, RBAC, hardening |
 | [Known Limitations](docs/known-limitations.md) | kubelet limits, tag-only images, imagePullPolicy |
