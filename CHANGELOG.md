@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-04
+
+### Added
+
+- Registry-assisted tag resolution (`--registry-resolve`) — queries source registries via v2 API to resolve tag-only images to digests when agent containerd queries return empty
+- `ImageResolvedUncached` event when a tag resolves via registry but no node has the digest cached
+- `tote_registry_resolve_total` and `tote_registry_resolve_duration_seconds` Prometheus metrics
+- `ToteNotActionableSpike` alert (warning) — fires on >3 not-actionable events in 5 minutes
+- `ToteNotActionableSustained` alert (critical) — fires on >10 failures in 30 minutes with zero salvage successes
+- Helm values: `registryResolve.enabled`, `registryResolve.timeout`, `registryResolve.ca`, `registryResolve.insecure`
+
+### Fixed
+
+- Replaced deprecated `fake.NewSimpleClientset` with `fake.NewClientset` (staticcheck SA1019)
+
 ## [0.7.0] - 2026-03-21
 
 ### Added
