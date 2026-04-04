@@ -13,10 +13,15 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/ppiankov/tote)](https://goreportcard.com/report/github.com/ppiankov/tote)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![ANCC](https://img.shields.io/badge/ANCC-compliant-brightgreen)](docs/SKILL.md)
+[![Status](https://img.shields.io/badge/status-stable-brightgreen)]()
 
 Emergency Kubernetes operator that detects image pull failures, finds cached copies on other nodes, and salvages images via node-to-node transfer.
 
 **If this tool ever feels comfortable, you've used it wrong.**
+
+## Project status
+
+**Stable.** tote is feature-complete and in maintenance mode. It receives bug fixes and compatibility updates only — no new features are planned.
 
 ## Why this exists
 
