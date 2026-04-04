@@ -12,7 +12,7 @@ import (
 )
 
 func TestRun_AllHealthy(t *testing.T) {
-	clientset := fake.NewSimpleClientset(
+	clientset := fake.NewClientset(
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "tote-system"}},
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
 			Name:        "myapp",
@@ -73,7 +73,7 @@ func TestRun_AllHealthy(t *testing.T) {
 }
 
 func TestRun_NoAgents(t *testing.T) {
-	clientset := fake.NewSimpleClientset(
+	clientset := fake.NewClientset(
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "tote-system"}},
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
@@ -99,7 +99,7 @@ func TestRun_NoAgents(t *testing.T) {
 }
 
 func TestRun_ControllerNotReady(t *testing.T) {
-	clientset := fake.NewSimpleClientset(
+	clientset := fake.NewClientset(
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "tote-system"}},
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
