@@ -11,6 +11,7 @@ internal/
   config/config.go                Kill switch, denied namespaces, annotation constants
   detector/detector.go            Extract ImagePullBackOff/ErrImagePull/CreateContainerError
   resolver/resolver.go            Parse image refs, classify digest vs tag-only
+  registry/resolve.go             Resolve tag-only images via source registry v2 API (opt-in)
   inventory/inventory.go          Find nodes with a digest via Node.Status.Images
   events/events.go                Emit structured Kubernetes Warning events
   metrics/metrics.go              Prometheus counters + histograms
@@ -45,7 +46,7 @@ Pod event received
       │   └─ kubelet retries: fresh pull or tote salvages on next cycle
       │
       ├─ resolver.Resolve() → has digest?
-      │   ├─ Tag-only → try Node.Status.Images → try agents → emit NotActionable
+      │   ├─ Tag-only → try Node.Status.Images → try agents → try registry v2 → emit NotActionable
       │   └─ Has digest → continue
       │
       ├─ inventory.FindNodes() → which nodes have the digest?
@@ -74,3 +75,5 @@ tote uses two methods to find cached images:
 1. **Node.Status.Images** (no agent required): The kubelet reports which images are cached on each node. Limited to 50 images by default (`--node-status-max-images`).
 
 2. **Agent queries** (when deployed): The tote agent DaemonSet queries containerd directly, bypassing the 50-image limit. Also resolves tags to digests as a fallback.
+
+3. **Registry v2 lookup** (opt-in): When both node status and agents fail to resolve a tag-only image, tote queries the source registry's v2 API to resolve the tag to a digest. Requires network access to the registry; skipped when disabled.
