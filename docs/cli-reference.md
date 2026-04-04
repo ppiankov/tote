@@ -23,6 +23,10 @@
 | `--webhook-url` | | Webhook notification URL |
 | `--webhook-events` | | Event types: detected, salvaged, salvage_failed, pushed, push_failed |
 | `--salvagerecord-ttl` | `168h` | TTL for completed SalvageRecords |
+| `--registry-resolve` | `false` | Enable registry-assisted tag resolution for tag-only images |
+| `--registry-resolve-timeout` | `5s` | Timeout for registry tag resolution requests |
+| `--registry-resolve-ca` | | Path to CA certificate for source registry TLS |
+| `--registry-insecure` | `false` | Allow HTTP connections to source registries |
 
 ## Agent flags
 
@@ -68,7 +72,7 @@ Always excluded: `kube-system`, `kube-public`, `kube-node-lease`.
 |--------|------|-------------|
 | `tote_detected_failures_total` | Counter | Image pull failures detected |
 | `tote_salvageable_images_total` | Counter | Failures with cached digest on other nodes |
-| `tote_not_actionable_total` | Counter | Tag-only image failures |
+| `tote_not_actionable_total` | Counter | Tag-only image failures (with `--registry-resolve`, only incremented when both agent and registry resolution fail) |
 | `tote_salvage_attempts_total` | Counter | Salvage transfer attempts |
 | `tote_salvage_successes_total` | Counter | Successful salvages |
 | `tote_salvage_failures_total` | Counter | Failed salvages |
@@ -78,3 +82,5 @@ Always excluded: `kube-system`, `kube-public`, `kube-node-lease`.
 | `tote_corrupt_images_total` | Counter | Corrupt images cleaned |
 | `tote_salvage_duration_seconds` | Histogram | Salvage transfer time |
 | `tote_push_duration_seconds` | Histogram | Backup push time |
+| `tote_registry_resolve_total` | Counter | Registry tag resolution attempts (labels: `result=success\|failure\|not_found`) |
+| `tote_registry_resolve_duration_seconds` | Histogram | Duration of registry tag resolution operations |
