@@ -148,6 +148,12 @@ image not actionable (tag-only, no cached digest found)
 
 This means the image is **not cached on any node in the cluster**. tote cannot salvage what doesn't exist — the image must have been pulled successfully at least once on some node.
 
+**With `--registry-resolve` enabled** (v0.8.0+), tote will attempt registry v2 resolution before declaring not-actionable. Look for these log messages:
+
+- `querying source registry for tag resolution` — registry step triggered
+- `resolved tag via registry` — tag→digest resolved, checking nodes for cached copy
+- `resolved via registry but no node has digest cached` — image exists in the registry but was never pulled to any node (`ImageResolvedUncached` event)
+
 ### Enable verbose logging
 
 Tag resolution details are logged at verbosity level 1. To see them:
@@ -214,6 +220,7 @@ kubectl describe pod myapp-abc123 -n my-namespace | grep -A2 tote
 |-------------|---------|
 | `ImageSalvageable` | Image digest found on other nodes, salvage will be attempted |
 | `ImageNotActionable` | Tag-only image, no cached digest found anywhere |
+| `ImageResolvedUncached` | Tag resolved via registry but image not cached on any node |
 | `ImageSalvaged` | Transfer completed successfully |
 | `ImageSalvageFailed` | Transfer attempted but failed |
 | `ImageCorrupt` | Stale image record with missing blobs, cleaning up |
@@ -236,6 +243,8 @@ kubectl describe pod myapp-abc123 -n my-namespace | grep -A2 tote
 | `tote_push_successes_total` | Successful pushes |
 | `tote_push_failures_total` | Failed pushes |
 | `tote_push_duration_seconds` | Push time histogram |
+| `tote_registry_resolve_total` | Registry tag resolution attempts (success/failure/not_found) |
+| `tote_registry_resolve_duration_seconds` | Registry resolution latency |
 
 ### Prometheus alerts and ServiceMonitor
 
@@ -270,6 +279,13 @@ kubectl get prometheusrule -n <namespace> tote -o jsonpath='{.metadata.labels.re
 curl -s http://localhost:9090/api/v1/rules | jq '.data.groups[] | select(.name=="tote")'
 ```
 
+**Built-in alerts** (v0.8.0+):
+
+| Alert | Severity | Condition |
+|-------|----------|-----------|
+| `ToteNotActionableSpike` | warning | >3 not-actionable events in 5m |
+| `ToteNotActionableSustained` | critical | >10 failures in 30m with zero salvage successes |
+
 Same applies to `serviceMonitor.labels` — check `spec.serviceMonitorSelector` on your Prometheus resource.
 
 ### Decision tree
@@ -287,6 +303,7 @@ Pod in ImagePullBackOff/ErrImagePull
     YES ↓
   → tote_salvageable_images_total incrementing?
     NO → image not cached on any node (check tote_not_actionable_total)
+         With --registry-resolve: check tote_registry_resolve_total for success/failure breakdown
     YES ↓
   → tote_salvage_successes_total incrementing?
     NO → check salvage failure logs (agent connectivity, rate limits, image size)
