@@ -40,6 +40,24 @@ spec:
             summary: "Most image failures are not salvageable"
             description: "More failures are not-actionable than salvageable. Consider using digest references instead of tags."
 
+        - alert: ToteNotActionableSpike
+          expr: increase(tote_not_actionable_total[5m]) > 3
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Spike in not-actionable image failures"
+            description: "{{ "{{" }} $value {{ "}}" }} tag-only images could not be resolved in the last 5 minutes. Check if deployments reference images never pulled to the cluster."
+
+        - alert: ToteNotActionableSustained
+          expr: increase(tote_not_actionable_total[30m]) > 10 and increase(tote_salvage_successes_total[30m]) == 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Sustained image failures with no successful salvages"
+            description: "{{ "{{" }} $value {{ "}}" }} not-actionable failures in 30 minutes with zero salvage successes. Cluster may have lost access to image sources."
+
         - alert: ToteControllerDown
           expr: up{job=~".*tote.*"} == 0
           for: 5m
