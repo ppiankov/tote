@@ -63,9 +63,27 @@
 - [x] CI: Helm lint job
 - [x] `make proto` Makefile target
 
+### v0.6.0 — Observability and memory
+
+- [x] PrometheusRule alerts in Helm chart
+- [x] Troubleshooting guide
+- [x] Cache transform to reduce controller memory ~10x (strip unused pod fields)
+- [x] Increase default controller memory to 512Mi
+
+### v0.7.0 — Diagnostics and compliance
+
+- [x] `tote doctor` command (kubeconfig, CRD, controller, agents, namespaces)
+- [x] `docs/SKILL.md` for ANCC compliance
+- [x] PrometheusRule alerts for not-actionable image spikes
+
+### v0.8.0 — Registry resolution
+
+- [x] Registry-assisted tag resolution (`--registry-resolve`) — query source registries to resolve tag→digest for tag-only images
+- [x] Replace deprecated `NewSimpleClientset` with `NewClientset`
+
 ## Current state
 
-**v0.5.1** — tagged, released, deployed, verified on live cluster. All 25 work orders complete. CI: 6 parallel jobs, all green, under 2 minutes.
+**v0.8.0** — tagged, released. CI: 6 parallel jobs, all green, under 2 minutes.
 
 ## Known gaps (not blocking)
 
