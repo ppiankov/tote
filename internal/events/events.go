@@ -23,6 +23,9 @@ const (
 	// ReasonCorruptImage indicates the image record exists but content blobs are missing.
 	ReasonCorruptImage = "ImageCorrupt"
 
+	// ReasonResolvedUncached indicates the tag was resolved via registry but no node has the digest cached.
+	ReasonResolvedUncached = "ImageResolvedUncached"
+
 	// ReasonPushed indicates the image was pushed to a backup registry.
 	ReasonPushed = "ImagePushed"
 
@@ -110,5 +113,16 @@ func (e *Emitter) EmitPushFailed(pod *corev1.Pod, digest, targetRef, reason stri
 		pod, nil, corev1.EventTypeWarning, ReasonPushFailed, actionPushing,
 		"Registry push failed for %s to %s: %s",
 		digest, targetRef, reason,
+	)
+}
+
+// EmitResolvedButUncached emits a Warning event indicating the image tag was
+// resolved to a digest via the source registry, but no node has that digest
+// cached in containerd. The image exists in the registry but was never pulled.
+func (e *Emitter) EmitResolvedButUncached(pod *corev1.Pod, image, digest string) {
+	e.Recorder.Eventf(
+		pod, nil, corev1.EventTypeWarning, ReasonResolvedUncached, actionDetected,
+		"Tag %s resolved to %s via registry, but no node has it cached. Image exists in registry but was never pulled to this cluster.",
+		image, digest,
 	)
 }

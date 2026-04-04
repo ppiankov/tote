@@ -26,6 +26,9 @@ const (
 
 	// DefaultMaxImageSize is the default max image size for salvage (2 GiB).
 	DefaultMaxImageSize int64 = 2 * 1024 * 1024 * 1024
+
+	// DefaultRegistryResolveTimeout is the default timeout for registry tag resolution.
+	DefaultRegistryResolveTimeout = 5 * time.Second
 )
 
 // DefaultDeniedNamespaces are always excluded regardless of annotations.
@@ -68,6 +71,13 @@ type Config struct {
 
 	// BackupRegistryInsecure allows HTTP connections to the backup registry.
 	BackupRegistryInsecure bool
+
+	// RegistryResolve enables querying source registries to resolve tag-only
+	// images to digests via the registry v2 API.
+	RegistryResolve bool
+
+	// RegistryResolveTimeout is the per-request timeout for registry API calls.
+	RegistryResolveTimeout time.Duration
 }
 
 // AgentConfig holds agent-specific configuration.

@@ -21,6 +21,7 @@ import (
 	"github.com/ppiankov/tote/internal/inventory"
 	"github.com/ppiankov/tote/internal/metrics"
 	"github.com/ppiankov/tote/internal/notify"
+	"github.com/ppiankov/tote/internal/registry"
 	"github.com/ppiankov/tote/internal/resolver"
 	"github.com/ppiankov/tote/internal/transfer"
 )
@@ -34,6 +35,7 @@ type PodReconciler struct {
 	Metrics       *metrics.Counters
 	Orchestrator  *transfer.Orchestrator
 	AgentResolver *transfer.Resolver
+	TagResolver   registry.TagResolver
 	Notifier      *notify.Notifier
 }
 
@@ -135,6 +137,39 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 					logger.V(1).Info("resolved tag via agent", "container", f.ContainerName, "image", f.Image, "digest", digest, "node", sourceNode)
 				} else if err == nil {
 					logger.V(1).Info("agents returned no digest", "container", f.ContainerName, "image", f.Image)
+				}
+			}
+
+			if digest == "" {
+				// Step 2.5: Registry-assisted resolution (opt-in).
+				if r.TagResolver != nil {
+					logger.V(1).Info("querying source registry for tag resolution", "image", f.Image)
+					start := time.Now()
+					regDigest, regErr := r.TagResolver.ResolveTag(ctx, f.Image)
+					r.Metrics.RecordRegistryResolveDuration(time.Since(start))
+					if regErr != nil {
+						logger.Error(regErr, "registry tag resolution failed", "image", f.Image)
+						r.Metrics.RecordRegistryResolve("failure")
+					} else if regDigest != "" {
+						r.Metrics.RecordRegistryResolve("success")
+						logger.V(1).Info("resolved tag via registry", "image", f.Image, "digest", regDigest)
+						// Check if any node has this digest cached.
+						regNodes, findErr := r.Finder.FindNodes(ctx, regDigest)
+						if findErr != nil {
+							logger.Error(findErr, "failed to find nodes for registry-resolved digest", "digest", regDigest)
+						} else if len(regNodes) > 0 {
+							digest = regDigest
+							nodes = regNodes
+						} else {
+							// Digest exists in registry but no node has it.
+							logger.V(1).Info("resolved via registry but no node has digest cached", "image", f.Image, "digest", regDigest)
+							r.Emitter.EmitResolvedButUncached(&pod, f.Image, regDigest)
+							r.Metrics.RecordNotActionable()
+							continue
+						}
+					} else {
+						r.Metrics.RecordRegistryResolve("not_found")
+					}
 				}
 			}
 

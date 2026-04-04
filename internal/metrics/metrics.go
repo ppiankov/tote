@@ -8,18 +8,20 @@ import (
 
 // Counters holds all tote Prometheus metrics.
 type Counters struct {
-	DetectedFailures  prometheus.Counter
-	SalvageableImages prometheus.Counter
-	NotActionable     prometheus.Counter
-	CorruptImages     prometheus.Counter
-	SalvageAttempts   prometheus.Counter
-	SalvageSuccesses  prometheus.Counter
-	SalvageFailures   prometheus.Counter
-	PushAttempts      prometheus.Counter
-	PushSuccesses     prometheus.Counter
-	PushFailures      prometheus.Counter
-	SalvageDuration   prometheus.Histogram
-	PushDuration      prometheus.Histogram
+	DetectedFailures     prometheus.Counter
+	SalvageableImages    prometheus.Counter
+	NotActionable        prometheus.Counter
+	CorruptImages        prometheus.Counter
+	SalvageAttempts      prometheus.Counter
+	SalvageSuccesses     prometheus.Counter
+	SalvageFailures      prometheus.Counter
+	PushAttempts         prometheus.Counter
+	PushSuccesses        prometheus.Counter
+	PushFailures         prometheus.Counter
+	SalvageDuration      prometheus.Histogram
+	PushDuration         prometheus.Histogram
+	RegistryResolveTotal *prometheus.CounterVec
+	RegistryResolveDur   prometheus.Histogram
 }
 
 // NewCounters creates and registers Prometheus counters with the given registry.
@@ -75,6 +77,15 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 			Help:    "Duration of backup registry push operations in seconds.",
 			Buckets: []float64{0.5, 1, 2, 5, 10, 30, 60, 120, 300},
 		}),
+		RegistryResolveTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "tote_registry_resolve_total",
+			Help: "Total registry tag resolution attempts by result.",
+		}, []string{"result"}),
+		RegistryResolveDur: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "tote_registry_resolve_duration_seconds",
+			Help:    "Duration of registry tag resolution operations in seconds.",
+			Buckets: []float64{0.1, 0.25, 0.5, 1, 2, 5},
+		}),
 	}
 
 	reg.MustRegister(
@@ -90,6 +101,8 @@ func NewCounters(reg prometheus.Registerer) *Counters {
 		c.PushFailures,
 		c.SalvageDuration,
 		c.PushDuration,
+		c.RegistryResolveTotal,
+		c.RegistryResolveDur,
 	)
 
 	return c
@@ -153,4 +166,14 @@ func (c *Counters) RecordSalvageDuration(d time.Duration) {
 // RecordPushDuration observes push operation duration.
 func (c *Counters) RecordPushDuration(d time.Duration) {
 	c.PushDuration.Observe(d.Seconds())
+}
+
+// RecordRegistryResolve increments the registry resolve counter for the given result.
+func (c *Counters) RecordRegistryResolve(result string) {
+	c.RegistryResolveTotal.WithLabelValues(result).Inc()
+}
+
+// RecordRegistryResolveDuration observes registry resolve operation duration.
+func (c *Counters) RecordRegistryResolveDuration(d time.Duration) {
+	c.RegistryResolveDur.Observe(d.Seconds())
 }

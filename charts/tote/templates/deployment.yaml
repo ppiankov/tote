@@ -64,6 +64,16 @@ spec:
             {{- if .Values.notifications.events }}
             - --webhook-events={{ .Values.notifications.events }}
             {{- end }}
+            {{- if .Values.registryResolve.enabled }}
+            - --registry-resolve=true
+            - --registry-resolve-timeout={{ .Values.registryResolve.timeout }}
+            {{- if .Values.registryResolve.ca }}
+            - --registry-resolve-ca={{ .Values.registryResolve.ca }}
+            {{- end }}
+            {{- if .Values.registryResolve.insecure }}
+            - --registry-insecure=true
+            {{- end }}
+            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ (split ":" .Values.config.metricsAddr)._1 | default 8080 }}

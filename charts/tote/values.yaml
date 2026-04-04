@@ -51,6 +51,19 @@ controller:
   # TTL for completed SalvageRecords (Go duration).
   salvageRecordTTL: "168h"
 
+# Registry-assisted tag resolution.
+# When enabled, tote queries source registries to resolve tag-only images
+# to digests via the registry v2 API. Only used when agent containerd
+# queries return no result. Default off — opt-in until battle-tested.
+registryResolve:
+  enabled: false
+  # Per-request timeout for registry API calls.
+  timeout: "5s"
+  # Path to CA certificate for source registry TLS (e.g. internal CAs).
+  ca: ""
+  # Allow HTTP connections to source registries.
+  insecure: false
+
 # Webhook notifications.
 notifications:
   # URL to POST event payloads to (empty = disabled).

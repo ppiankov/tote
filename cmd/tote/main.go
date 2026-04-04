@@ -33,6 +33,7 @@ import (
 	"github.com/ppiankov/tote/internal/inventory"
 	"github.com/ppiankov/tote/internal/metrics"
 	"github.com/ppiankov/tote/internal/notify"
+	"github.com/ppiankov/tote/internal/registry"
 	"github.com/ppiankov/tote/internal/session"
 	"github.com/ppiankov/tote/internal/tlsutil"
 	"github.com/ppiankov/tote/internal/transfer"
@@ -89,6 +90,10 @@ func newControllerCmd() *cobra.Command {
 		salvageRecordTTL       string
 		webhookURL             string
 		webhookEvents          string
+		registryResolve        bool
+		registryResolveTimeout string
+		registryResolveCA      string
+		registryInsecure       bool
 	)
 
 	cmd := &cobra.Command{
@@ -98,7 +103,7 @@ func newControllerCmd() *cobra.Command {
 			if err := config.ValidateTLSFlags(tlsCert, tlsKey, tlsCA); err != nil {
 				return err
 			}
-			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure, tlsCert, tlsKey, tlsCA, jsonLog, salvageRecordTTL, webhookURL, webhookEvents)
+			return runController(enabled, metricsAddr, maxConcurrentSalvages, sessionTTL, agentNamespace, agentGRPCPort, maxImageSize, backupRegistry, backupRegistrySecret, backupRegistryInsecure, tlsCert, tlsKey, tlsCA, jsonLog, salvageRecordTTL, webhookURL, webhookEvents, registryResolve, registryResolveTimeout, registryResolveCA, registryInsecure)
 		},
 	}
 
@@ -119,6 +124,10 @@ func newControllerCmd() *cobra.Command {
 	cmd.Flags().StringVar(&salvageRecordTTL, "salvagerecord-ttl", "168h", "time-to-live for completed SalvageRecords")
 	cmd.Flags().StringVar(&webhookURL, "webhook-url", "", "URL for webhook notifications (empty = disabled)")
 	cmd.Flags().StringVar(&webhookEvents, "webhook-events", "", "comma-separated event types to send (empty = all)")
+	cmd.Flags().BoolVar(&registryResolve, "registry-resolve", false, "enable registry-assisted tag resolution for tag-only images")
+	cmd.Flags().StringVar(&registryResolveTimeout, "registry-resolve-timeout", config.DefaultRegistryResolveTimeout.String(), "timeout for registry tag resolution requests")
+	cmd.Flags().StringVar(&registryResolveCA, "registry-resolve-ca", "", "path to CA certificate for source registry TLS")
+	cmd.Flags().BoolVar(&registryInsecure, "registry-insecure", false, "allow HTTP connections to source registries")
 
 	return cmd
 }
@@ -189,7 +198,7 @@ func newDoctorCmd() *cobra.Command {
 	return cmd
 }
 
-func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool, tlsCert, tlsKey, tlsCA string, jsonLog bool, salvageRecordTTLStr, webhookURL, webhookEvents string) error {
+func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, sessionTTLStr, agentNamespace string, agentGRPCPort int, maxImageSize int64, backupRegistry, backupRegistrySecret string, backupRegistryInsecure bool, tlsCert, tlsKey, tlsCA string, jsonLog bool, salvageRecordTTLStr, webhookURL, webhookEvents string, registryResolve bool, registryResolveTimeoutStr, registryResolveCA string, registryInsecure bool) error {
 	if jsonLog {
 		ctrl.SetLogger(zap.New())
 	} else {
@@ -253,6 +262,25 @@ func runController(enabled bool, metricsAddr string, maxConcurrentSalvages int, 
 		Finder:  inventory.NewFinder(mgr.GetClient()),
 		Emitter: emitter,
 		Metrics: m,
+	}
+
+	// Registry-assisted tag resolution (opt-in).
+	if registryResolve {
+		resolveTimeout := config.DefaultRegistryResolveTimeout
+		if registryResolveTimeoutStr != "" && registryResolveTimeoutStr != config.DefaultRegistryResolveTimeout.String() {
+			parsed, err := time.ParseDuration(registryResolveTimeoutStr)
+			if err != nil {
+				return fmt.Errorf("invalid registry-resolve-timeout: %w", err)
+			}
+			resolveTimeout = parsed
+		}
+		tagResolver := registry.NewHTTPTagResolver(resolveTimeout, registryInsecure)
+		if registryResolveCA != "" {
+			if err := tagResolver.WithCA(registryResolveCA); err != nil {
+				return fmt.Errorf("loading registry CA: %w", err)
+			}
+		}
+		reconciler.TagResolver = tagResolver
 	}
 
 	// Set up salvage orchestrator if agent namespace is configured.
