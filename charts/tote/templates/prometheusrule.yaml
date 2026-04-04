@@ -58,6 +58,15 @@ spec:
             summary: "Sustained image failures with no successful salvages"
             description: "{{ "{{" }} $value {{ "}}" }} not-actionable failures in 30 minutes with zero salvage successes. Cluster may have lost access to image sources."
 
+        - alert: ToteSalvageOccurred
+          expr: increase(tote_salvage_successes_total[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Images salvaged from node cache — fix registry availability"
+            description: "{{ "{{" }} $value {{ "}}" }} images were salvaged in the last 15 minutes. Salvage means the image was not pullable from its registry but was found cached on another node. Push missing images to the registry to prevent data loss if the source node is drained."
+
         - alert: ToteControllerDown
           expr: up{job=~".*tote.*"} == 0
           for: 5m

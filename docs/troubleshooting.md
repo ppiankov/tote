@@ -285,6 +285,7 @@ curl -s http://localhost:9090/api/v1/rules | jq '.data.groups[] | select(.name==
 |-------|----------|-----------|
 | `ToteNotActionableSpike` | warning | >3 not-actionable events in 5m |
 | `ToteNotActionableSustained` | critical | >10 failures in 30m with zero salvage successes |
+| `ToteSalvageOccurred` | warning | Any salvage succeeded in 15m — image missing from registry |
 
 Same applies to `serviceMonitor.labels` — check `spec.serviceMonitorSelector` on your Prometheus resource.
 

@@ -230,6 +230,7 @@ Shipped via Helm when `prometheusRule.enabled=true`.
 |-------|----------|-------------|
 | `ToteNotActionableSpike` | warning | Spike in not-actionable images (tag-only without digest) |
 | `ToteNotActionableSustained` | critical | Sustained rate of not-actionable images over time |
+| `ToteSalvageOccurred` | warning | Images salvaged from node cache — fix registry availability |
 
 ## JSON log format
 
