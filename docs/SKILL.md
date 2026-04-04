@@ -228,9 +228,13 @@ Shipped via Helm when `prometheusRule.enabled=true`.
 
 | Alert | Severity | Description |
 |-------|----------|-------------|
+| `ToteImagePullFailureDetected` | warning | Image pull failures detected in the last 5 minutes |
+| `ToteSalvageFailing` | critical | Salvage operations are failing over the last 10 minutes |
+| `ToteNoSalvageableImages` | warning | More not-actionable failures than salvageable ones |
 | `ToteNotActionableSpike` | warning | Spike in not-actionable images (tag-only without digest) |
 | `ToteNotActionableSustained` | critical | Sustained rate of not-actionable images over time |
 | `ToteSalvageOccurred` | warning | Images salvaged from node cache — fix registry availability |
+| `ToteControllerDown` | critical | Prometheus cannot scrape the tote controller metrics endpoint |
 
 ## JSON log format
 
@@ -254,7 +258,7 @@ When `--json-log=true`, logs are structured JSON (one object per line):
 | Value | Default | Description |
 |-------|---------|-------------|
 | `image.repository` | `ghcr.io/ppiankov/tote` | Container image |
-| `image.tag` | `0.7.0` | Image tag |
+| `image.tag` | `0.8.0` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 | `resources.requests.memory` | `64Mi` | Controller memory request |
 | `resources.limits.memory` | `256Mi` | Controller memory limit |
@@ -268,6 +272,10 @@ When `--json-log=true`, logs are structured JSON (one object per line):
 | `controller.backupRegistrySecret` | `""` | dockerconfigjson Secret name |
 | `controller.backupRegistryInsecure` | `false` | Allow HTTP to backup registry |
 | `controller.salvageRecordTTL` | `168h` | TTL for completed SalvageRecords |
+| `registryResolve.enabled` | `false` | Enable registry-assisted tag resolution |
+| `registryResolve.timeout` | `5s` | Timeout for registry resolution requests |
+| `registryResolve.ca` | `""` | CA certificate for source registry TLS |
+| `registryResolve.insecure` | `false` | Allow HTTP to source registries |
 | `notifications.webhookUrl` | `""` | Webhook URL (empty = disabled) |
 | `notifications.events` | `""` | Event types to notify |
 | `tls.enabled` | `false` | Enable mTLS for gRPC |
