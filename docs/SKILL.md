@@ -35,6 +35,10 @@ Runs the controller (default when no subcommand given). Watches pods, detects fa
 | `--salvagerecord-ttl` | `168h` | TTL for completed SalvageRecords |
 | `--webhook-url` | | URL for event notifications (empty = disabled) |
 | `--webhook-events` | | Event types: detected, salvaged, salvage_failed, pushed, push_failed |
+| `--registry-resolve` | `false` | Enable registry-assisted tag resolution |
+| `--registry-resolve-timeout` | `5s` | Timeout for registry resolution requests |
+| `--registry-resolve-ca` | | CA certificate for registry TLS verification |
+| `--registry-insecure` | `false` | Allow HTTP for registry resolution |
 
 ### tote agent
 
@@ -164,6 +168,7 @@ kubectl get salvagerecords -A -o json | jq '.items[] | {digest: .spec.digest, so
 | `ImageSalvaged` | Warning | Salvaged | Image successfully transferred to target node |
 | `ImageSalvageFailed` | Warning | Salvaging | Salvage transfer failed |
 | `ImageCorrupt` | Warning | Cleaning | Corrupt image record detected in containerd |
+| `ImageResolvedUncached` | Warning | Detected | Tag resolved to digest via registry but no node has it cached |
 | `ImagePushed` | Normal | Pushing | Image pushed to backup registry |
 | `ImagePushFailed` | Warning | Pushing | Backup registry push failed |
 
@@ -201,6 +206,8 @@ All metrics are exposed on the controller's `--metrics-addr` (default `:8080`).
 | `tote_push_failures_total` | counter | Failed push attempts |
 | `tote_salvage_duration_seconds` | histogram | Salvage operation duration (buckets: 0.5, 1, 2, 5, 10, 30, 60, 120, 300) |
 | `tote_push_duration_seconds` | histogram | Push operation duration (buckets: 0.5, 1, 2, 5, 10, 30, 60, 120, 300) |
+| `tote_registry_resolve_total` | counter | Registry tag resolution attempts (labels: `result`) |
+| `tote_registry_resolve_duration_seconds` | histogram | Registry resolution duration |
 
 **Prometheus exposition format:**
 
@@ -214,6 +221,15 @@ tote_detected_failures_total 42
 kubectl port-forward -n tote-system deploy/tote 8080:8080
 curl -s localhost:8080/metrics | grep tote_
 ```
+
+## PrometheusRule alerts
+
+Shipped via Helm when `prometheusRule.enabled=true`.
+
+| Alert | Severity | Description |
+|-------|----------|-------------|
+| `ToteNotActionableSpike` | warning | Spike in not-actionable images (tag-only without digest) |
+| `ToteNotActionableSustained` | critical | Sustained rate of not-actionable images over time |
 
 ## JSON log format
 
