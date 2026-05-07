@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-05-07
+
+### Fixed
+
+- Reaper now sweeps expired SalvageRecords immediately on startup, preventing OOM accumulation spirals where records pile up during repeated crash loops and kill the controller on the next informer LIST
+
 ## [0.8.0] - 2026-04-04
 
 ### Added

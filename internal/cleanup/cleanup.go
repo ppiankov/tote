@@ -33,8 +33,11 @@ func (r *Reaper) NeedLeaderElection() bool {
 }
 
 // Start runs the periodic cleanup loop until ctx is cancelled.
+// An immediate sweep runs on startup so expired records are pruned before
+// the informer cache is fully warm — prevents OOM accumulation spirals.
 func (r *Reaper) Start(ctx context.Context) error {
 	logger := log.FromContext(ctx).WithName("cleanup")
+	r.sweep(ctx, logger)
 	ticker := time.NewTicker(r.Interval)
 	defer ticker.Stop()
 
